@@ -44,6 +44,7 @@ const state = {
   messages: [],
   feed: null,        // realtime subscription for the open channel
   presence: null,    // workspace-wide presence subscription
+  entering: null,    // the user id currently being loaded, if any
 };
 
 // ---------------------------------------------------------------- session
@@ -92,6 +93,15 @@ function setGateMsg(text, cls) {
 el.signout.addEventListener("click", () => supabase.auth.signOut());
 
 async function enter(session) {
+  // On load, onAuthStateChange and getSession both fire, so without this guard
+  // the whole workspace loads twice concurrently -- and if the second pass
+  // fails, its empty results overwrite the good ones from the first.
+  if (state.entering === session.user.id || state.me?.id === session.user.id) {
+    supabase.realtime.setAuth(session.access_token);
+    return;
+  }
+  state.entering = session.user.id;
+
   // Realtime authorizes each subscriber against RLS using this token, so it
   // has to be handed over before any channel is opened.
   supabase.realtime.setAuth(session.access_token);
@@ -105,6 +115,7 @@ async function enter(session) {
   if (error || !me) {
     // Authenticated with Supabase, but with no row in `members` -- which the
     // signup trigger only creates for allowlisted addresses.
+    state.entering = null;
     await supabase.auth.signOut();
     showGate();
     setGateMsg("That account is not a member of this workspace.", "err");
@@ -123,6 +134,8 @@ async function enter(session) {
   watchPresence();
   updateHint();
 
+  state.entering = null;
+
   if (state.channels.length) {
     // A magic-link return lands with the auth tokens in the fragment
     // (#access_token=...). Supabase normally clears it before we get here,
@@ -138,20 +151,27 @@ function teardown() {
   if (state.presence) supabase.removeChannel(state.presence);
   Object.assign(state, {
     me: null, channels: [], agents: [], people: new Map(), online: new Set(),
-    specialties: new Map(), channel: null, messages: [], feed: null, presence: null,
+    specialties: new Map(), channel: null, messages: [], feed: null,
+    presence: null, entering: null,
   });
 }
 
 // ---------------------------------------------------------------- loading
 
 async function loadChannels() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("channels")
     .select("id, slug, name, purpose, github_owner, github_repo, github_branch")
     .order("position")
     .order("slug");
 
-  state.channels = data ?? [];
+  // Leaving a correct list alone beats replacing it with an empty one.
+  if (error || !data) {
+    console.error("[cat] could not load channels:", error);
+    return;
+  }
+
+  state.channels = data;
   el.channels.replaceChildren(...state.channels.map((c) => {
     const li = document.createElement("li");
     const b = document.createElement("button");
@@ -164,13 +184,18 @@ async function loadChannels() {
 }
 
 async function loadAgents() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("agents")
     .select("slug, display_name, model, enabled")
     .eq("enabled", true)
     .order("slug");
 
-  state.agents = data ?? [];
+  if (error || !data) {
+    console.error("[cat] could not load agents:", error);
+    return;
+  }
+
+  state.agents = data;
   el.agents.replaceChildren(...state.agents.map((a) => {
     const li = document.createElement("li");
     li.className = "agent";
@@ -190,12 +215,17 @@ async function loadSpecialties() {
 }
 
 async function loadPeople() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("members")
     .select("id, display_name, username, specialty, can_invoke_agent")
     .order("display_name");
 
-  state.people = new Map((data ?? []).map((m) => [m.id, m]));
+  if (error || !data) {
+    console.error("[cat] could not load people:", error);
+    return;
+  }
+
+  state.people = new Map(data.map((m) => [m.id, m]));
   renderPeople();
 }
 
