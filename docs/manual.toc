@@ -5,7 +5,7 @@
 \contentsline {subsection}{\numberline {2.1}Why the browser can hold the keys it does}{4}{subsection.2.1}%
 \contentsline {subsection}{\numberline {2.2}Why the agent answers asynchronously}{4}{subsection.2.2}%
 \contentsline {section}{\numberline {3}The permission model}{4}{section.3}%
-\contentsline {subsection}{\numberline {3.1}A subtlety worth stating}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.1}A subtlety worth stating}{5}{subsection.3.1}%
 \contentsline {section}{\numberline {4}Data model}{5}{section.4}%
 \contentsline {subsection}{\numberline {4.1}Specialties and code areas}{5}{subsection.4.1}%
 \contentsline {subsection}{\numberline {4.2}Messages}{5}{subsection.4.2}%
@@ -19,8 +19,8 @@
 \contentsline {subsection}{\numberline {6.2}Seeing who is in the workspace}{7}{subsection.6.2}%
 \contentsline {subsection}{\numberline {6.3}Adding a channel}{7}{subsection.6.3}%
 \contentsline {subsection}{\numberline {6.4}Adding an agent}{7}{subsection.6.4}%
-\contentsline {section}{\numberline {7}Deployment}{7}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Supabase}{7}{subsection.7.1}%
+\contentsline {section}{\numberline {7}Deployment}{8}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Supabase}{8}{subsection.7.1}%
 \contentsline {subsection}{\numberline {7.2}The Edge Function}{8}{subsection.7.2}%
 \contentsline {subsection}{\numberline {7.3}GitHub Pages}{8}{subsection.7.3}%
 \contentsline {section}{\numberline {8}Testing}{8}{section.8}%
