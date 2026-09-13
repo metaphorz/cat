@@ -512,6 +512,32 @@ async function loadTranscript(
     .join("\n\n");
 }
 
+const FILE_LIST_LIMIT = 600;
+
+// Directories that are checked in but are not the codebase: build output,
+// dependencies, caches.
+const SKIP_DIRS = new Set([
+  "outputs", "output", "venv", ".venv", "env", "node_modules", "__pycache__",
+  "vendor", "site-packages", ".ipynb_checkpoints", ".git", "dist", "build",
+  ".pytest_cache", ".mypy_cache",
+]);
+
+// Files that cannot be read or discussed as text.
+const SKIP_EXTS = [
+  ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".pdf", ".zip",
+  ".gz", ".tar", ".7z", ".npy", ".npz", ".nc", ".tif", ".tiff", ".shp",
+  ".dbf", ".shx", ".prj", ".cpg", ".parquet", ".pkl", ".whl", ".so",
+  ".dylib", ".dll", ".exe", ".log", ".eml", ".mp4", ".mov", ".woff",
+  ".woff2", ".ttf", ".eot",
+];
+
+function isSourcePath(path: string): boolean {
+  const lower = path.toLowerCase();
+  if (lower.split("/").some((seg) => SKIP_DIRS.has(seg))) return false;
+  if (SKIP_EXTS.some((ext) => lower.endsWith(ext))) return false;
+  return true;
+}
+
 // Repo context is a nicety, not a requirement. A missing token, a renamed
 // repo or a GitHub outage degrades the answer rather than failing the call.
 async function loadRepoContext(channel: Channel): Promise<string | null> {
@@ -535,26 +561,63 @@ async function loadRepoContext(channel: Channel): Promise<string | null> {
       ),
     ]);
 
-    const parts: string[] = [`Repository: github.com/${owner}/${repo} (branch ${branch})`];
+    const parts: string[] = [
+      `Repository: github.com/${owner}/${repo} (branch ${branch})`,
+    ];
 
-    if (readmeRes.ok) {
-      const readme = (await readmeRes.text()).slice(0, 20000);
-      if (readme.trim()) parts.push(`README:\n\n${readme}`);
-    }
-
+    let all: string[] = [];
     if (treeRes.ok) {
       const tree = await treeRes.json();
-      const files = (tree.tree ?? [])
+      all = (tree.tree ?? [])
         .filter((n: { type: string }) => n.type === "blob")
-        .map((n: { path: string }) => n.path)
-        .slice(0, 800);
-      if (files.length) parts.push(`Files in the repository:\n\n${files.join("\n")}`);
+        .map((n: { path: string }) => n.path);
     }
 
-    if (!readmeRes.ok && !treeRes.ok) {
-      const why = readmeRes.status === 404 || treeRes.status === 404
+    // An overview document: the README when there is one, otherwise the most
+    // promising top-level markdown file. Plenty of research repositories keep
+    // their orientation in a plan or notes file and never add a README.
+    let overview = readmeRes.ok ? await readmeRes.text() : "";
+    let overviewName = "README";
+
+    if (!overview.trim() && all.length) {
+      const candidate = pickOverviewDoc(all);
+      if (candidate) {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${candidate}?ref=${branch}`,
+          { headers: { ...headers, Accept: "application/vnd.github.raw" } },
+        );
+        if (res.ok) {
+          overview = await res.text();
+          overviewName = candidate;
+        }
+      }
+    }
+
+    if (overview.trim()) {
+      parts.push(`${overviewName}:\n\n${overview.slice(0, 20000)}`);
+    }
+
+    // Truncating an unfiltered listing is worse than useless: a repository
+    // that commits its generated output would spend the whole budget on
+    // artifacts, alphabetically crowding out the source entirely.
+    const source = all.filter(isSourcePath);
+    const shown = source.slice(0, FILE_LIST_LIMIT);
+
+    if (shown.length) {
+      const omitted = all.length - shown.length;
+      parts.push(
+        `Source files in the repository` +
+          (omitted > 0
+            ? ` (${shown.length} of ${all.length}; generated output, vendored dependencies and binaries omitted)`
+            : "") +
+          `:\n\n${shown.join("\n")}`,
+      );
+    }
+
+    if (parts.length === 1) {
+      const why = treeRes.status === 404
         ? "not found, or not visible with the configured credentials"
-        : `GitHub returned ${readmeRes.status}/${treeRes.status}`;
+        : `GitHub returned ${treeRes.status}`;
       return `Repository github.com/${owner}/${repo} could not be read (${why}). Answer from the conversation alone, and say so if the question needs the code.`;
     }
 
@@ -562,4 +625,23 @@ async function loadRepoContext(channel: Channel): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+// Prefer a real README, then something that reads like an overview, then a
+// plan; failing all that, the first top-level markdown file there is.
+function pickOverviewDoc(paths: string[]): string | null {
+  const roots = paths.filter(
+    (p) => !p.includes("/") && p.toLowerCase().endsWith(".md"),
+  );
+  if (!roots.length) return null;
+
+  const rank = (p: string) => {
+    const l = p.toLowerCase();
+    if (l.includes("readme")) return 0;
+    if (l.includes("overview")) return 1;
+    if (l.includes("plan")) return 2;
+    return 3;
+  };
+
+  return roots.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))[0];
 }
