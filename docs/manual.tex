@@ -1,0 +1,458 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\graphicspath{{figures/}}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  backgroundcolor=\color{gray!8}
+}
+
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=blue}
+
+\title{CAT User and Administrator Manual\\[2pt]\large A shared human and AI workspace for discussing a codebase}
+\author{Paul Fishwick and Claude Code}
+\date{September 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+CAT is a small chat workspace in which a research group discusses a specific
+GitHub codebase, with AI agents participating as named members of the
+conversation. It resembles Slack in shape---a sidebar of channels, a message
+list, a composer---but it is deliberately much smaller, and it makes one
+commitment Slack does not: each channel is bound to a repository, and the
+agents in that channel can read it.
+
+The system is designed for a group of fewer than twenty people. That constraint
+is not incidental. It is what makes it reasonable to let every member read every
+channel, to manage membership by adding rows to a table, and to run the whole
+thing on free hosting.
+
+A second constraint shapes it just as much: only some people may invoke an AI
+agent. Everyone can read, everyone can talk, but summoning an agent spends money
+against an API key, and that permission is granted individually. Hiding a button
+would not be a control, so the check lives on the server, in the one place the
+key exists.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{interface.png}
+\caption{The CAT workspace. Channels and agents are listed in the sidebar, with
+people grouped by discipline beneath them. The badge under the member's own name
+indicates permission to invoke agents.}
+\label{fig:interface}
+\end{figure}
+
+\subsection{Design goals}
+
+\begin{itemize}
+  \item \textbf{One channel per codebase.} \texttt{\#multimodel} is about
+    \texttt{github.com/metaphorz/Multimodel}. Adding a repository means adding
+    a row, not deploying anything.
+  \item \textbf{Agents are participants, not features.} They appear in the
+    roster, they are addressed by name, and their replies are ordinary messages
+    in the transcript.
+  \item \textbf{An interdisciplinary group is the normal case.} Members carry a
+    discipline, and the agent is told who is asking, so a statistician and a
+    meteorologist asking the same question get different answers.
+  \item \textbf{Permissions are enforced where they cannot be bypassed.}
+  \item \textbf{No build step.} The client is three static files. It is
+    deployed by copying them to GitHub Pages.
+\end{itemize}
+
+\subsection{What CAT is not}
+
+The agents read and discuss. They cannot write files, push branches, or open
+pull requests---there is no code path by which they could. Having an agent
+propose real changes through a GitHub Action is a plausible next phase, but it
+is a different trust decision and deserves to be made deliberately rather than
+inherited.
+
+There are also no threads, reactions, file uploads, or message editing.
+Recreating Slack is not the goal; having somewhere to think about a codebase
+together is.
+
+\section{Architecture}
+
+CAT is a static web page and a managed backend. There is no server to
+administer and nothing to keep running.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{architecture.png}
+\caption{The whole system. The browser holds no secrets; the Edge Function
+holds all of them.}
+\label{fig:architecture}
+\end{figure}
+
+\begin{description}
+  \item[GitHub Pages] serves \texttt{index.html}, \texttt{app.js},
+    \texttt{style.css} and \texttt{config.js}. These are static files with no
+    build step, published by a GitHub Actions workflow on every push.
+  \item[Supabase] provides authentication, a PostgreSQL database with row level
+    security, a realtime change feed, and the Edge Function runtime. The free
+    tier is far larger than this workload requires.
+  \item[The Edge Function] (\texttt{invoke-agent}) is the security boundary. It
+    identifies the caller, decides whether they may summon an agent, and only
+    then reaches for the API key.
+  \item[OpenRouter] reaches Anthropic, OpenAI and Google models through a single
+    credential, which is what makes adding an agent a database row rather than
+    a code change.
+\end{description}
+
+\subsection{Why the browser can hold the keys it does}
+
+\texttt{config.js} contains the Supabase project URL and the publishable
+(anonymous) key, and both are visible to anyone who views source. This is
+intended. The anonymous key is an identifier, not an authorisation: every table
+is protected by row level security, and an unauthenticated caller holding that
+key can read nothing at all. The credentials that matter---the OpenRouter key,
+the GitHub token, the service role key---exist only as Edge Function secrets
+and never reach a browser.
+
+\subsection{Why the agent answers asynchronously}
+
+A model call on a real question can take longer than a browser will keep a
+request open. Rather than hold the connection, \texttt{invoke-agent} inserts an
+empty message with \texttt{status = 'pending'}, returns immediately, and
+finishes the work in the background, updating that row when the answer arrives.
+
+The realtime feed turns this into a feature. Every connected client sees
+``Claude is thinking'' the moment the agent is summoned, and sees the reply
+replace it when it lands---without polling and without reloading.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.72\textwidth]{agent-flow.png}
+\caption{Invoking an agent. The permission check happens before any credential
+is touched, and the placeholder makes the wait visible to everyone.}
+\label{fig:agentflow}
+\end{figure}
+
+\section{The permission model}
+
+Three mechanisms hold the system up, and it is worth knowing which does what,
+because they fail differently.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{trust.png}
+\caption{Where each decision is made. Nothing in the browser is trusted.}
+\label{fig:trust}
+\end{figure}
+
+\begin{description}
+  \item[Getting in at all] is the \texttt{allowlist} table together with a
+    trigger on user creation. An address that is not listed cannot create an
+    account: the trigger raises an exception and the signup fails. This matters
+    because the page is public---anyone can load the sign-in screen.
+  \item[Reading and posting] is row level security. A member may insert messages
+    as themselves and as nobody else, and messages carrying an
+    \texttt{agent\_slug} are rejected outright, so a collaborator cannot forge
+    words from an agent. Agent messages are written only by the service role,
+    which the browser never possesses.
+  \item[Invoking an agent] is the Edge Function checking
+    \texttt{can\_invoke\_agent} before it touches the API key.
+\end{description}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+& Read & Post & Invoke agents \\
+\midrule
+Paul & yes & yes & yes \\
+Other members & yes & yes & no \\
+Agents & yes & yes & --- \\
+Anyone else & no & no & no \\
+\bottomrule
+\end{tabular}
+\caption{The default arrangement. Permission to invoke agents is granted per
+person in the \texttt{members} table.}
+\end{table}
+
+\subsection{A subtlety worth stating}
+
+Row level security decides \emph{which rows} a member may change; it cannot
+decide \emph{which columns}. Members are allowed to edit their own profile row,
+and without a further restriction that would let anyone grant themselves
+\texttt{can\_invoke\_agent}. The schema therefore also issues a column-level
+grant:
+
+\begin{lstlisting}[language=SQL]
+revoke update on public.members from authenticated;
+grant update (display_name, github_login, username, specialty)
+  on public.members to authenticated;
+\end{lstlisting}
+
+\texttt{can\_invoke\_agent} and \texttt{is\_admin} are deliberately absent from
+that list.
+
+\section{Data model}
+
+Seven tables, shown in Figure~\ref{fig:schema}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{schema.png}
+\caption{The schema. \texttt{allowlist} governs who may exist;
+\texttt{members} records who does.}
+\label{fig:schema}
+\end{figure}
+
+The distinction between \texttt{allowlist} and \texttt{members} is the one that
+confuses people. \texttt{allowlist} is an invitation: an address, and what that
+person will be allowed to do. \texttt{members} is created automatically the
+first time they actually sign in. Someone invited but absent exists in the first
+table and not the second, and is therefore invisible in the interface.
+
+\subsection{Specialties and code areas}
+
+Each member carries a \texttt{specialty}---meteorologist, statistician, actuary,
+geospatial analyst, and so on. Each channel additionally maps specialties to
+real paths in \emph{that} repository, through \texttt{channel\_areas}. The
+mapping is per channel rather than global because ``the statistics code'' means
+something different in every repository.
+
+The agent receives both. When a statistician asks how the wind field is
+generated, it can answer in the vocabulary of sampling and variance and point at
+\texttt{pipeline/fit\_metamodels.py}; when a meteorologist asks the same
+question it can talk about surface roughness and point at
+\texttt{pipeline/windfield.py}. When a question lands squarely in someone else's
+discipline, it is instructed to say so and name that person rather than answer
+at the edge of its competence.
+
+\subsection{Messages}
+
+A message is written either by a person or by an agent, never both, and a check
+constraint enforces it:
+
+\begin{lstlisting}[language=SQL]
+constraint messages_speaker_check check (
+  (author_id is not null and agent_slug is null) or
+  (author_id is null and agent_slug is not null)
+)
+\end{lstlisting}
+
+The \texttt{status} column carries \texttt{pending}, \texttt{complete} or
+\texttt{error}, which is how the ``thinking'' state is represented. The
+\texttt{metadata} column records, for agent messages, which model answered, who
+asked, and the token usage---visible in small type beneath each reply.
+
+\section{Using CAT}
+
+\subsection{Signing in}
+
+There is no password. Enter an allowlisted email address, and a single-use link
+arrives by mail.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.55\textwidth]{signin.png}
+\caption{The sign-in screen. It is all anyone sees without an invitation.}
+\label{fig:signin}
+\end{figure}
+
+Two things commonly go wrong. The link must be opened on a machine that can
+reach the address it redirects to, and it must be opened in the browser you
+intend to use---a session created in one browser does not exist in another.
+
+\subsection{Channels}
+
+Each channel corresponds to a repository, named for it, and the header links
+directly to it on GitHub. Selecting a channel loads its history and subscribes
+to live updates; the channel is reflected in the page URL, so a particular
+channel can be linked to or bookmarked.
+
+\subsection{Talking to an agent}
+
+Mention an agent by name anywhere in a message:
+
+\begin{lstlisting}
+@claude what does this codebase model, and where should a
+statistician look first?
+\end{lstlisting}
+
+The composer indicates whether the mention will summon anyone. Members without
+permission may still write \texttt{@claude}---the text is not forbidden---but
+nothing will answer, and the composer says so plainly rather than failing
+silently.
+
+The agent is given the recent conversation, the roster with everyone's
+discipline, the specialty-to-path map for that channel, and the repository's
+overview document and source file listing. It is told who asked and what their
+discipline is.
+
+\subsection{Interface size}
+
+The sidebar carries a size control offering five steps. It scales the entire
+interface---type, avatars, sidebar width---rather than type alone, because a
+large font inside a fixed-width column reads worse than no change at all. The
+choice is remembered per browser.
+
+\section{Administration}
+
+\subsection{Adding a person}
+
+One row, in the Supabase SQL editor:
+
+\begin{lstlisting}[language=SQL]
+insert into public.allowlist
+  (email, display_name, username, specialty, can_invoke_agent)
+values
+  ('alice@example.edu', 'Alice Reyes', 'alice', 'statistics', false);
+\end{lstlisting}
+
+They then sign in themselves; the member record is created on first login.
+Setting the specialty is worth doing at this point, since it is what lets the
+agent pitch its answers correctly.
+
+To change an existing member's permissions, update \texttt{members}---the
+\texttt{allowlist} value only seeds the initial state:
+
+\begin{lstlisting}[language=SQL]
+update public.members set can_invoke_agent = true
+where username = 'alice';
+\end{lstlisting}
+
+\subsection{Seeing who is in the workspace}
+
+Three states are easy to confuse: \emph{invited} (on the allowlist, possibly
+never seen), \emph{member} (has signed in at least once), and \emph{present}
+(has the application open right now). Only the last two appear in the sidebar,
+and presence is live state that is not stored anywhere.
+
+\begin{lstlisting}[language=SQL]
+select a.email,
+       coalesce(m.display_name, a.display_name) as name,
+       m.username,
+       (m.id is not null)                       as has_signed_in,
+       u.last_sign_in_at
+from public.allowlist a
+left join public.members m on lower(m.email) = lower(a.email)
+left join auth.users     u on u.id = m.id
+order by u.last_sign_in_at desc nulls last, a.email;
+\end{lstlisting}
+
+\subsection{Adding a channel}
+
+\begin{lstlisting}[language=SQL]
+insert into public.channels
+  (slug, name, purpose, github_owner, github_repo, position)
+values
+  ('hurricane', 'hurricane', 'Storm track generation.',
+   'metaphorz', 'Hurricane', 1);
+\end{lstlisting}
+
+If the repository is private, the configured GitHub token needs read access to
+it as well. Consider also populating \texttt{channel\_areas} for the new
+channel, since that is what lets the agent direct people to the right files.
+
+\subsection{Adding an agent}
+
+Because the Edge Function dispatches on \texttt{agents.provider}, adding a model
+requires no deployment at all:
+
+\begin{lstlisting}[language=SQL]
+insert into public.agents (slug, display_name, provider, model)
+values ('gemini', 'Gemini', 'openrouter',
+        'google/gemini-3.1-pro-preview');
+\end{lstlisting}
+
+Adding a new \emph{provider}---something other than \texttt{anthropic} or
+\texttt{openrouter}---does require a branch in the function and a redeployment.
+
+Note that adding agents widens what can be asked for; it does not widen who may
+ask.
+
+\section{Deployment}
+
+\subsection{Supabase}
+
+Create a project, then run the migrations in \texttt{supabase/migrations/} in
+order, in the SQL editor. Under \textbf{Authentication → URL Configuration},
+set the site URL and the redirect URLs, including both the published address and
+\texttt{http://localhost:8000/} for local work. Note the trailing slashes: the
+client asks to be returned to \texttt{origin + pathname}, which always ends in
+one, and an entry lacking it will not match.
+
+The built-in email sender is limited to roughly two messages per hour and is
+intended for testing. Configure custom SMTP before inviting anyone.
+
+\subsection{The Edge Function}
+
+\begin{lstlisting}[language=bash]
+supabase secrets set --project-ref <ref> OPENROUTER_API_KEY=...
+supabase secrets set --project-ref <ref> GITHUB_TOKEN=...
+supabase functions deploy invoke-agent --project-ref <ref>
+\end{lstlisting}
+
+\texttt{SUPABASE\_URL}, \texttt{SUPABASE\_ANON\_KEY} and
+\texttt{SUPABASE\_SERVICE\_ROLE\_KEY} are injected automatically and must not be
+set by hand.
+
+The GitHub token is optional. Without it the agent can still discuss the
+conversation, but a private repository is invisible to it; it is told so, and
+says so, rather than guessing.
+
+\subsection{GitHub Pages}
+
+Pages must be served from a public repository unless the account has a paid
+plan. This is safe: no credential lives in any committed file. A public page is
+not public access---anyone may load the sign-in box, and the allowlist decides
+everything after that.
+
+\section{Testing}
+
+\texttt{tests/test\_screens.py} drives a real browser through every screen using
+Selenium: the sign-in gate, the refusal of an address that is not on the
+allowlist, the signed-in workspace, posting, code-block rendering, escaping of
+markup in messages, and the agent hint in the composer. Screenshots are written
+to \texttt{tests/screenshots/}.
+
+Two aspects are worth noting. Magic-link authentication leaves nothing to type,
+so the suite mints a sign-in link through Supabase's admin API and drives the
+browser to it. And because there is only one database, everything the suite
+writes is tagged and deleted afterwards.
+
+\begin{lstlisting}[language=bash]
+export SUPABASE_SERVICE_ROLE_KEY=...
+python3 tests/test_screens.py -v            # all but the agent
+CAT_TEST_AGENT=1 python3 tests/test_screens.py -v   # including it
+\end{lstlisting}
+
+Invoking an agent costs money, so that test is opt-in. By default the suite
+checks that the composer offers the agent, not that a vendor answers.
+
+\section{Limitations and future work}
+
+\begin{itemize}
+  \item \textbf{Agents cannot change code.} Dispatching a GitHub Action that
+    opens a pull request is the obvious next phase, and the schema already
+    reserves \texttt{metadata} for recording the resulting branch or PR.
+  \item \textbf{Every member sees every channel.} Reasonable below twenty
+    people; it would need per-channel membership beyond that.
+  \item \textbf{Repository context is a file listing and an overview document,}
+    not the code itself. The agent knows what exists and can reason about
+    structure, but cannot read a function body it was not shown.
+  \item \textbf{Free-tier projects pause after a week of inactivity} and are
+    resumed from the dashboard with data intact.
+  \item \textbf{Presence is not history.} There is no record of who was here
+    yesterday, only who is here now and when each person last signed in.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,72 @@
+digraph schema {
+  rankdir=LR;
+  bgcolor="white";
+  node [shape=plaintext, fontname="Helvetica", fontsize=10];
+  edge [color="#4a5568", fontsize=9, fontname="Helvetica"];
+
+  allowlist [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#fdf0d5"><b>allowlist</b></td></tr>
+      <tr><td align="left">email (pk)</td></tr>
+      <tr><td align="left">display_name, username</td></tr>
+      <tr><td align="left">specialty</td></tr>
+      <tr><td align="left">can_invoke_agent</td></tr>
+    </table>>];
+
+  members [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#eaf5ec"><b>members</b></td></tr>
+      <tr><td align="left">id (pk) → auth.users</td></tr>
+      <tr><td align="left">email, display_name</td></tr>
+      <tr><td align="left">username (unique)</td></tr>
+      <tr><td align="left">specialty → specialties</td></tr>
+      <tr><td align="left">can_invoke_agent</td></tr>
+    </table>>];
+
+  specialties [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#f3e8fd"><b>specialties</b></td></tr>
+      <tr><td align="left">slug (pk)</td></tr>
+      <tr><td align="left">label, description</td></tr>
+    </table>>];
+
+  channels [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#e8eefc"><b>channels</b></td></tr>
+      <tr><td align="left">id (pk)</td></tr>
+      <tr><td align="left">slug (unique)</td></tr>
+      <tr><td align="left">github_owner / repo / branch</td></tr>
+    </table>>];
+
+  channel_areas [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#f3e8fd"><b>channel_areas</b></td></tr>
+      <tr><td align="left">channel_id + specialty (pk)</td></tr>
+      <tr><td align="left">paths[]</td></tr>
+    </table>>];
+
+  agents [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#fdf0d5"><b>agents</b></td></tr>
+      <tr><td align="left">slug (pk)</td></tr>
+      <tr><td align="left">provider, model</td></tr>
+    </table>>];
+
+  messages [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#eaf5ec"><b>messages</b></td></tr>
+      <tr><td align="left">id (pk)</td></tr>
+      <tr><td align="left">channel_id → channels</td></tr>
+      <tr><td align="left">author_id → members</td></tr>
+      <tr><td align="left">agent_slug → agents</td></tr>
+      <tr><td align="left">body, status, metadata</td></tr>
+    </table>>];
+
+  allowlist -> members [label=" seeds ", style=dashed];
+  specialties -> members;
+  specialties -> channel_areas;
+  channels -> channel_areas;
+  channels -> messages;
+  members -> messages [label=" author "];
+  agents -> messages [label=" or agent "];
+}

@@ -1,0 +1,26 @@
+digraph agentflow {
+  rankdir=TB;
+  bgcolor="white";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        color="#4a5568", margin="0.16,0.09"];
+  edge [color="#4a5568", fontname="Helvetica", fontsize=9];
+
+  a [label="Paul types “@claude …” in #multimodel", fillcolor="#e8eefc"];
+  b [label="Message inserted by the browser\l(row level security: author_id = self)\l", fillcolor="#eaf5ec"];
+  c [label="Browser calls invoke-agent with its user JWT", fillcolor="#e8eefc"];
+  d [label="Function identifies the caller\land checks can_invoke_agent\l", fillcolor="#fdf0d5"];
+  e [label="Refused (403)\lno key is ever touched\l", fillcolor="#fde8e8"];
+  f [label="Placeholder row inserted, status = pending\lHTTP 202 returned immediately\l", fillcolor="#fdf0d5"];
+  g [label="Everyone sees “Claude is thinking”\l(realtime INSERT)\l", fillcolor="#e8eefc"];
+  h [label="Background: gather transcript, roster,\lspecialty→path map, repository context\l", fillcolor="#fdf0d5"];
+  i [label="OpenRouter → model", fillcolor="#f3e8fd"];
+  j [label="Placeholder updated with the answer\lstatus = complete\l", fillcolor="#fdf0d5"];
+  k [label="Everyone sees the reply\l(realtime UPDATE, no reload)\l", fillcolor="#e8eefc"];
+
+  a -> b -> c -> d;
+  d -> e [label="  not permitted", color="#c53030", fontcolor="#c53030"];
+  d -> f [label="  permitted"];
+  f -> g [style=dashed];
+  f -> h -> i -> j;
+  j -> k [style=dashed];
+}

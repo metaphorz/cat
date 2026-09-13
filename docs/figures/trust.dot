@@ -1,0 +1,23 @@
+digraph trust {
+  rankdir=LR;
+  bgcolor="white";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+        color="#4a5568", margin="0.18,0.11"];
+  edge [color="#4a5568", fontname="Helvetica", fontsize=9];
+
+  visitor [label="Anyone with the URL", fillcolor="#f4f6fa"];
+  allow   [label="allowlist table\l+ signup trigger\l", fillcolor="#fdf0d5", shape=box];
+  member  [label="Member\lread · post\l", fillcolor="#eaf5ec"];
+  rls     [label="Row level security\lpost only as yourself\lnever as an agent\l", fillcolor="#fdf0d5"];
+  check   [label="can_invoke_agent\lchecked in the edge function\l", fillcolor="#fdf0d5"];
+  agent   [label="Agent runs\lkeys never leave the server\l", fillcolor="#e8eefc"];
+  out     [label="Refused", fillcolor="#fde8e8", shape=box];
+
+  visitor -> allow [label="  sign in"];
+  allow -> member  [label="  listed"];
+  allow -> out     [label="  not listed", color="#c53030", fontcolor="#c53030"];
+  member -> rls    [label="  writes"];
+  member -> check  [label="  @agent"];
+  check -> agent   [label="  permitted"];
+  check -> out     [label="  not permitted", color="#c53030", fontcolor="#c53030"];
+}

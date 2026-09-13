@@ -1,0 +1,43 @@
+digraph architecture {
+  rankdir=TB;
+  bgcolor="white";
+  node [shape=box, style="rounded,filled", fillcolor="#f4f6fa", color="#4a5568",
+        fontname="Helvetica", fontsize=11, margin="0.16,0.10"];
+  edge [color="#4a5568", fontname="Helvetica", fontsize=9];
+
+  subgraph cluster_browser {
+    label="Browser  (GitHub Pages, static)";
+    fontname="Helvetica-Bold"; fontsize=11; color="#9aa5b1"; style=rounded;
+    ui [label="index.html · app.js · style.css\lchannels, messages, presence\l", fillcolor="#e8eefc"];
+  }
+
+  subgraph cluster_supabase {
+    label="Supabase";
+    fontname="Helvetica-Bold"; fontsize=11; color="#9aa5b1"; style=rounded;
+    auth  [label="Auth\lmagic link + allowlist\l", fillcolor="#eaf5ec"];
+    db    [label="PostgreSQL\lrow level security\l", fillcolor="#eaf5ec"];
+    rt    [label="Realtime\lpostgres changes, presence\l", fillcolor="#eaf5ec"];
+    fn    [label="Edge Function\linvoke-agent\l", fillcolor="#fdf0d5"];
+  }
+
+  subgraph cluster_external {
+    label="External services";
+    fontname="Helvetica-Bold"; fontsize=11; color="#9aa5b1"; style=rounded;
+    or  [label="OpenRouter", fillcolor="#f3e8fd"];
+    gh  [label="GitHub API\lrepository context\l", fillcolor="#f3e8fd"];
+    vendors [label="Anthropic · OpenAI · Google", shape=box, style="rounded,filled",
+             fillcolor="#faf5ff"];
+  }
+
+  ui -> auth [label="  sign in"];
+  ui -> db   [label="  read / post\l  (anon key + RLS)\l"];
+  rt -> ui   [label="  live updates"];
+  db -> rt   [style=dashed, label="  change feed"];
+  ui -> fn   [label="  @agent\l  (user JWT)\l"];
+
+  fn -> db  [label="  service role\l  (bypasses RLS)\l"];
+  fn -> gh  [label="  read files"];
+  fn -> or  [label="  prompt"];
+  or -> vendors;
+
+}
