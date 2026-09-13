@@ -44,13 +44,29 @@ Valid slugs are in `public.specialties`: `meteorology`, `statistics`,
 
 **Authentication → URL Configuration**:
 
-- **Site URL** — `https://metaphorz.github.io/cat/` (or whatever the Pages URL
-  ends up being)
-- **Redirect URLs** — add both the Pages URL and `http://localhost:8000/` so
-  that local development works too
+**Site URL**
 
-Magic links only redirect to URLs on this list. Getting this wrong is the most
-common reason a link appears to do nothing.
+```
+https://metaphorz.github.io/cat/
+```
+
+**Redirect URLs** — all four:
+
+```
+https://metaphorz.github.io/cat/
+https://metaphorz.github.io/cat/**
+http://localhost:8000/
+http://localhost:8000/**
+```
+
+Magic links only redirect to URLs on this list, and the match is literal.
+
+Note the **trailing slashes**. The client asks to be returned to
+`window.location.origin + window.location.pathname`, which always ends in a
+slash -- so `http://localhost:8000` without one does not match and the link
+silently fails. The `**` entries cover any sub-path added later.
+
+This is the single most common reason a sign-in link appears to do nothing.
 
 Nothing else in the auth settings needs changing. Email signups must stay
 enabled — the allowlist trigger, not Supabase's signup toggle, is what keeps

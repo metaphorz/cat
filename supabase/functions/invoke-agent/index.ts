@@ -332,6 +332,25 @@ async function callAnthropic(
   };
 }
 
+// The repository context is large and identical for a whole conversation, so
+// paying for it on every single call is waste. OpenRouter passes cache_control
+// through to Anthropic models, which needs the content-array form; everything
+// else takes a plain string, and sending a breakpoint a model cannot honour
+// is a request error rather than a silent no-op.
+function systemContent(
+  model: string,
+  instructions: string,
+  repo: string | null,
+): unknown {
+  const plain = [instructions, repo].filter(Boolean).join("\n\n");
+  if (!repo || !model.startsWith("anthropic/")) return plain;
+
+  return [
+    { type: "text", text: instructions },
+    { type: "text", text: repo, cache_control: { type: "ephemeral" } },
+  ];
+}
+
 // The proxy path: one key reaching every vendor. This is what makes adding
 // @codex or @gemini a row in the agents table rather than new code -- at the
 // cost of the Anthropic-specific features above, which the OpenAI-compatible
@@ -357,10 +376,7 @@ async function callOpenRouter(
       model: agent.model,
       max_tokens: 8000,
       messages: [
-        {
-          role: "system",
-          content: [instructions, repo].filter(Boolean).join("\n\n"),
-        },
+        { role: "system", content: systemContent(agent.model, instructions, repo) },
         { role: "user", content: userTurn },
       ],
     }),
