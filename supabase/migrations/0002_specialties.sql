@@ -32,8 +32,8 @@ insert into public.specialties (slug, label, description, position) values
    'Grids, boundaries, cadastral and census geography, place names.', 3),
   ('visualization','Visualization',
    'The web viewer, animation, contouring and interactive display.', 4),
-  ('engineering',  'Software engineer',
-   'Pipeline structure, performance, packaging and testing.', 5),
+  ('engineering',  'Engineer',
+   'Civil, coastal and structural engineering: the built environment, and how it responds to hazard.', 5),
   ('simulation',   'Modeling and simulation',
    'How the pieces compose into a model, and what the model is for.', 6);
 
