@@ -1,0 +1,591 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { CONFIG } from "./config.js";
+
+const supabase = createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+
+const $ = (id) => document.getElementById(id);
+const el = {
+  gate: $("gate"), signin: $("signin"), email: $("email"), signinBtn: $("signin-btn"),
+  gateMsg: $("gate-msg"), app: $("app"), channels: $("channels"), agents: $("agents"),
+  people: $("people"), meName: $("me-name"), meBadge: $("me-badge"), signout: $("signout"),
+  channelName: $("channel-name"), channelPurpose: $("channel-purpose"),
+  channelRepo: $("channel-repo"), messages: $("messages"), composer: $("composer"),
+  input: $("input"), send: $("send"), hint: $("hint"),
+  fontSize: $("font-size"),
+};
+
+// ---------------------------------------------------------------- text size
+
+// Applied before anything renders, so a reader who has chosen a larger
+// interface never sees a frame of the small one.
+const FONT_KEY = "cat:font-size";
+const DEFAULT_FONT = "18";
+
+function applyFontSize(px) {
+  document.documentElement.style.setProperty("--ui-font", px + "px");
+}
+
+applyFontSize(localStorage.getItem(FONT_KEY) ?? DEFAULT_FONT);
+
+el.fontSize.value = localStorage.getItem(FONT_KEY) ?? DEFAULT_FONT;
+el.fontSize.addEventListener("change", () => {
+  localStorage.setItem(FONT_KEY, el.fontSize.value);
+  applyFontSize(el.fontSize.value);
+});
+
+const state = {
+  me: null,          // our row in `members`
+  channels: [],
+  agents: [],
+  people: new Map(), // member id -> member row
+  specialties: new Map(), // slug -> { label, position }
+  online: new Set(), // member ids currently present
+  channel: null,
+  messages: [],
+  feed: null,        // realtime subscription for the open channel
+  presence: null,    // workspace-wide presence subscription
+};
+
+// ---------------------------------------------------------------- session
+
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session) enter(session);
+  else showGate();
+});
+
+supabase.auth.getSession().then(({ data }) => {
+  if (data.session) enter(data.session);
+  else showGate();
+});
+
+function showGate() {
+  teardown();
+  el.app.hidden = true;
+  el.gate.hidden = false;
+}
+
+el.signin.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = el.email.value.trim();
+  if (!email) return;
+
+  el.signinBtn.disabled = true;
+  setGateMsg("Sending...", "");
+
+  // Send people back to this exact page, minus any leftover query string.
+  const redirect = window.location.origin + window.location.pathname;
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirect },
+  });
+
+  el.signinBtn.disabled = false;
+  if (error) setGateMsg(error.message, "err");
+  else setGateMsg("Check your email for a sign-in link.", "ok");
+});
+
+function setGateMsg(text, cls) {
+  el.gateMsg.textContent = text;
+  el.gateMsg.className = "msg" + (cls ? " " + cls : "");
+}
+
+el.signout.addEventListener("click", () => supabase.auth.signOut());
+
+async function enter(session) {
+  // Realtime authorizes each subscriber against RLS using this token, so it
+  // has to be handed over before any channel is opened.
+  supabase.realtime.setAuth(session.access_token);
+
+  const { data: me, error } = await supabase
+    .from("members")
+    .select("id, email, display_name, can_invoke_agent, is_admin")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
+  if (error || !me) {
+    // Authenticated with Supabase, but with no row in `members` -- which the
+    // signup trigger only creates for allowlisted addresses.
+    await supabase.auth.signOut();
+    showGate();
+    setGateMsg("That account is not a member of this workspace.", "err");
+    return;
+  }
+
+  state.me = me;
+  el.meName.textContent = me.display_name;
+  el.meBadge.hidden = !me.can_invoke_agent;
+
+  el.gate.hidden = true;
+  el.app.hidden = false;
+
+  await loadSpecialties();
+  await Promise.all([loadChannels(), loadAgents(), loadPeople()]);
+  watchPresence();
+  updateHint();
+
+  if (state.channels.length) {
+    // A magic-link return lands with the auth tokens in the fragment
+    // (#access_token=...). Supabase normally clears it before we get here,
+    // but only a clean slug is ever treated as a channel name.
+    const hash = window.location.hash.replace(/^#/, "");
+    const wanted = /^[a-z0-9_-]+$/i.test(hash) ? hash : "";
+    openChannel(state.channels.find((c) => c.slug === wanted) ?? state.channels[0]);
+  }
+}
+
+function teardown() {
+  if (state.feed) supabase.removeChannel(state.feed);
+  if (state.presence) supabase.removeChannel(state.presence);
+  Object.assign(state, {
+    me: null, channels: [], agents: [], people: new Map(), online: new Set(),
+    specialties: new Map(), channel: null, messages: [], feed: null, presence: null,
+  });
+}
+
+// ---------------------------------------------------------------- loading
+
+async function loadChannels() {
+  const { data } = await supabase
+    .from("channels")
+    .select("id, slug, name, purpose, github_owner, github_repo, github_branch")
+    .order("position")
+    .order("slug");
+
+  state.channels = data ?? [];
+  el.channels.replaceChildren(...state.channels.map((c) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "# " + c.slug;
+    b.addEventListener("click", () => openChannel(c));
+    li.append(b);
+    return li;
+  }));
+}
+
+async function loadAgents() {
+  const { data } = await supabase
+    .from("agents")
+    .select("slug, display_name, model, enabled")
+    .eq("enabled", true)
+    .order("slug");
+
+  state.agents = data ?? [];
+  el.agents.replaceChildren(...state.agents.map((a) => {
+    const li = document.createElement("li");
+    li.className = "agent";
+    li.innerHTML = `<span class="dot on"></span><span>@${escapeHtml(a.slug)}</span>`;
+    li.title = a.model;
+    return li;
+  }));
+}
+
+async function loadSpecialties() {
+  const { data } = await supabase
+    .from("specialties")
+    .select("slug, label, description, position")
+    .order("position");
+
+  state.specialties = new Map((data ?? []).map((s) => [s.slug, s]));
+}
+
+async function loadPeople() {
+  const { data } = await supabase
+    .from("members")
+    .select("id, display_name, username, specialty, can_invoke_agent")
+    .order("display_name");
+
+  state.people = new Map((data ?? []).map((m) => [m.id, m]));
+  renderPeople();
+}
+
+function specialtyLabel(slug) {
+  return state.specialties.get(slug)?.label ?? slug ?? "";
+}
+
+// Grouped by discipline rather than listed flat: in a mixed group, knowing
+// who the meteorologists are is most of the value of a member list.
+function renderPeople() {
+  const groups = new Map();
+  for (const m of state.people.values()) {
+    const key = m.specialty ?? "";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+
+  const ordered = [...groups.entries()].sort(([a], [b]) => {
+    // Anyone who has not set a specialty sorts to the bottom.
+    const pa = a ? state.specialties.get(a)?.position ?? 99 : 999;
+    const pb = b ? state.specialties.get(b)?.position ?? 99 : 999;
+    return pa - pb;
+  });
+
+  const out = [];
+  for (const [slug, members] of ordered) {
+    const head = document.createElement("li");
+    head.className = "group";
+    head.textContent = slug ? specialtyLabel(slug) : "No specialty set";
+    if (slug) head.title = state.specialties.get(slug)?.description ?? "";
+    out.push(head);
+
+    for (const m of members) {
+      const li = document.createElement("li");
+      const on = state.online.has(m.id);
+      li.innerHTML =
+        `<span class="dot${on ? " on" : ""}"></span>` +
+        `<span class="who">${escapeHtml(m.display_name)}` +
+        (m.id === state.me.id ? " (you)" : "") +
+        (m.username ? `<span class="handle">@${escapeHtml(m.username)}</span>` : "") +
+        `</span>`;
+      out.push(li);
+    }
+  }
+
+  el.people.replaceChildren(...out);
+}
+
+// Presence is workspace-wide rather than per-channel: with a group this size,
+// "who is around" is more useful than "who is looking at this channel".
+function watchPresence() {
+  state.presence = supabase.channel("presence:workspace", {
+    config: { presence: { key: state.me.id } },
+  });
+
+  state.presence
+    .on("presence", { event: "sync" }, () => {
+      state.online = new Set(Object.keys(state.presence.presenceState()));
+      renderPeople();
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await state.presence.track({ name: state.me.display_name });
+      }
+    });
+}
+
+// ---------------------------------------------------------------- channel
+
+async function openChannel(channel) {
+  state.channel = channel;
+  window.location.hash = channel.slug;
+
+  for (const b of el.channels.querySelectorAll("button")) {
+    b.setAttribute("aria-current", String(b.textContent === "# " + channel.slug));
+  }
+
+  el.channelName.textContent = "# " + channel.slug;
+  el.channelPurpose.textContent = channel.purpose ?? "";
+  if (channel.github_owner && channel.github_repo) {
+    el.channelRepo.hidden = false;
+    el.channelRepo.href = `https://github.com/${channel.github_owner}/${channel.github_repo}`;
+    el.channelRepo.textContent = `github.com/${channel.github_owner}/${channel.github_repo}`;
+  } else {
+    el.channelRepo.hidden = true;
+  }
+
+  el.input.placeholder = `Message #${channel.slug}`;
+  el.messages.replaceChildren();
+
+  await loadMessages();
+  subscribe();
+  updateHint();
+}
+
+async function loadMessages() {
+  const { data } = await supabase
+    .from("messages")
+    .select("id, channel_id, author_id, agent_slug, body, status, metadata, created_at")
+    .eq("channel_id", state.channel.id)
+    .order("created_at", { ascending: true })
+    .limit(300);
+
+  state.messages = data ?? [];
+  renderMessages();
+}
+
+function subscribe() {
+  if (state.feed) supabase.removeChannel(state.feed);
+
+  state.feed = supabase
+    .channel(`messages:${state.channel.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "messages",
+        filter: `channel_id=eq.${state.channel.id}`,
+      },
+      (payload) => {
+        if (payload.eventType === "INSERT") {
+          if (!state.messages.some((m) => m.id === payload.new.id)) {
+            state.messages.push(payload.new);
+          }
+        } else if (payload.eventType === "UPDATE") {
+          const i = state.messages.findIndex((m) => m.id === payload.new.id);
+          if (i !== -1) state.messages[i] = payload.new;
+        } else if (payload.eventType === "DELETE") {
+          state.messages = state.messages.filter((m) => m.id !== payload.old.id);
+        }
+        renderMessages();
+      },
+    )
+    .subscribe();
+}
+
+// ---------------------------------------------------------------- rendering
+
+function renderMessages() {
+  // Only follow the tail if the reader is already there, so an arriving
+  // message never yanks someone away from what they were reading.
+  const pinned =
+    el.messages.scrollHeight - el.messages.scrollTop - el.messages.clientHeight < 120;
+
+  if (!state.messages.length) {
+    el.messages.replaceChildren(
+      Object.assign(document.createElement("p"), {
+        className: "empty",
+        textContent: `No messages in #${state.channel.slug} yet.`,
+      }),
+    );
+    return;
+  }
+
+  const rows = [];
+  let prev = null;
+
+  for (const m of state.messages) {
+    const speaker = speakerOf(m);
+    const sameSpeaker = prev && speakerOf(prev).key === speaker.key;
+    const soonAfter =
+      prev && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60 * 1000;
+    rows.push(renderMessage(m, speaker, sameSpeaker && soonAfter));
+    prev = m;
+  }
+
+  el.messages.replaceChildren(...rows);
+  if (pinned) el.messages.scrollTop = el.messages.scrollHeight;
+}
+
+function speakerOf(m) {
+  if (m.agent_slug) {
+    const agent = state.agents.find((a) => a.slug === m.agent_slug);
+    return {
+      key: "agent:" + m.agent_slug,
+      name: agent?.display_name ?? m.agent_slug,
+      isAgent: true,
+    };
+  }
+  const person = state.people.get(m.author_id);
+  return {
+    key: "person:" + m.author_id,
+    name: person?.display_name ?? "someone",
+    specialty: person?.specialty ? specialtyLabel(person.specialty) : "",
+    isAgent: false,
+  };
+}
+
+function renderMessage(m, speaker, continued) {
+  const row = document.createElement("div");
+  row.className = "msg-row" +
+    (speaker.isAgent ? " by-agent" : "") +
+    (continued ? " continued" : " fresh");
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = speaker.isAgent ? "AI" : initials(speaker.name);
+
+  const body = document.createElement("div");
+  body.className = "msg-body";
+
+  if (!continued) {
+    const head = document.createElement("div");
+    head.className = "msg-head";
+    head.innerHTML =
+      `<span class="author">${escapeHtml(speaker.name)}</span>` +
+      (speaker.isAgent ? `<span class="tag">agent</span>` : "") +
+      (speaker.specialty ? `<span class="tag">${escapeHtml(speaker.specialty)}</span>` : "") +
+      `<span class="time">${formatTime(m.created_at)}</span>`;
+    body.append(head);
+  }
+
+  const text = document.createElement("div");
+  if (m.status === "pending") {
+    text.className = "text thinking";
+    text.textContent = `${speaker.name} is thinking`;
+  } else if (m.status === "error") {
+    text.className = "text errored";
+    text.textContent = m.body;
+  } else {
+    text.className = "text";
+    text.innerHTML = renderMarkdown(m.body);
+  }
+  body.append(text);
+
+  const usage = m.metadata?.usage;
+  if (m.status === "complete" && usage) {
+    const note = document.createElement("div");
+    note.className = "usage";
+    note.textContent = [
+      m.metadata.model,
+      `${usage.input_tokens} in / ${usage.output_tokens} out`,
+      usage.cache_read_input_tokens ? `${usage.cache_read_input_tokens} cached` : null,
+      m.metadata.invoked_by ? `asked by ${m.metadata.invoked_by}` : null,
+    ].filter(Boolean).join("  -  ");
+    body.append(note);
+  }
+
+  row.append(avatar, body);
+  return row;
+}
+
+function initials(name) {
+  return name.trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "").join("");
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  const today = new Date().toDateString() === d.toDateString();
+  return today
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleString([], {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+      });
+}
+
+// A deliberately small subset of Markdown: fenced code, inline code, bold,
+// italic, links and @mentions. Everything is escaped before any of it runs,
+// so nothing a message contains can become live markup. Code blocks are
+// lifted out first and restored last, so their contents are never touched
+// by the inline rules.
+function renderMarkdown(src) {
+  const blocks = [];
+  let text = escapeHtml(src);
+
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const cls = lang ? ` class="language-${lang}"` : "";
+    blocks.push(`<pre><code${cls}>${code.replace(/\n$/, "")}</code></pre>`);
+    return `\uE000${blocks.length - 1}\uE001`;
+  });
+
+  text = text
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\bhttps?:\/\/[^\s<]+[^\s<.,:;"')\]]/g,
+      (url) => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`)
+    .replace(/(^|\s)(@[a-z0-9_-]+)/gi, '$1<span class="mention">$2</span>');
+
+  text = text
+    .split(/\n{2,}/)
+    .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+
+  // Unwrap any paragraph that holds nothing but a code-block placeholder.
+  return text
+    .replace(/<p>\uE000(\d+)\uE001<\/p>/g, (_, i) => blocks[i])
+    .replace(/\uE000(\d+)\uE001/g, (_, i) => blocks[i]);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// ---------------------------------------------------------------- composing
+
+el.input.addEventListener("input", () => {
+  el.input.style.height = "auto";
+  el.input.style.height = Math.min(el.input.scrollHeight, 220) + "px";
+  updateHint();
+});
+
+el.input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    el.composer.requestSubmit();
+  }
+});
+
+// Which agent, if any, this draft is addressed to.
+function mentionedAgent(text) {
+  for (const a of state.agents) {
+    if (new RegExp(`(^|\\s)@${a.slug}\\b`, "i").test(text)) return a;
+  }
+  return null;
+}
+
+function updateHint() {
+  const agent = mentionedAgent(el.input.value);
+  if (!agent) {
+    const names = state.agents.map((a) => "@" + a.slug).join(", ");
+    el.hint.className = "hint";
+    el.hint.innerHTML = state.me?.can_invoke_agent && names
+      ? `Address <span class="mention">${escapeHtml(names)}</span> to bring an agent in.`
+      : "";
+  } else if (state.me?.can_invoke_agent) {
+    el.hint.className = "hint";
+    el.hint.innerHTML = `<span class="mention">@${escapeHtml(agent.slug)}</span> will reply.`;
+  } else {
+    el.hint.className = "hint err";
+    el.hint.textContent =
+      `You can mention @${agent.slug}, but only members with agent permission can summon one.`;
+  }
+}
+
+el.composer.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = el.input.value.trim();
+  if (!body || !state.channel) return;
+
+  el.send.disabled = true;
+  el.input.value = "";
+  el.input.style.height = "auto";
+
+  const { data: posted, error } = await supabase
+    .from("messages")
+    .insert({ channel_id: state.channel.id, author_id: state.me.id, body })
+    .select("id, channel_id, author_id, agent_slug, body, status, metadata, created_at")
+    .single();
+
+  el.send.disabled = false;
+
+  if (error) {
+    el.input.value = body;
+    el.hint.className = "hint err";
+    el.hint.textContent = "Could not send: " + error.message;
+    return;
+  }
+
+  // Realtime usually beats this, but showing our own message immediately
+  // keeps the composer feeling responsive on a slow connection.
+  if (!state.messages.some((m) => m.id === posted.id)) {
+    state.messages.push(posted);
+    renderMessages();
+  }
+
+  const agent = mentionedAgent(body);
+  if (agent && state.me.can_invoke_agent) await invoke(agent, body);
+
+  updateHint();
+  el.input.focus();
+});
+
+async function invoke(agent, prompt) {
+  const { error } = await supabase.functions.invoke("invoke-agent", {
+    body: { channel_id: state.channel.id, agent: agent.slug, prompt },
+  });
+
+  if (!error) return;
+
+  // The function's own refusals arrive as an HTTP error carrying a JSON body.
+  let detail = error.message;
+  try {
+    const parsed = await error.context?.json?.();
+    if (parsed?.error) detail = parsed.error;
+  } catch { /* fall back to the generic message */ }
+
+  el.hint.className = "hint err";
+  el.hint.textContent = `@${agent.slug} could not be reached: ${detail}`;
+}

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cat — codebase chat</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 50'><g fill='none' stroke='%237aa2f7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M9.5 14.5 L7.5 4.5 L17 9.5'/><path d='M30.5 14.5 L32.5 4.5 L23 9.5'/><path d='M20 9c7.2 0 12.5 5.4 12.5 12S27.2 33 20 33 7.5 27.6 7.5 21 12.8 9 20 9Z'/><path d='M15 19.5v3'/><path d='M25 19.5v3'/></g><text x='20' y='48' text-anchor='middle' font-family='monospace' font-size='14' font-weight='700' fill='%237aa2f7'>01</text></svg>">
+</head>
+<body>
+
+<!-- Sign-in -->
+<div id="gate" class="gate" hidden>
+  <form id="signin" class="card">
+    <h1>cat</h1>
+    <p class="sub">A shared workspace for talking about code.</p>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+    <button id="signin-btn" type="submit">Send sign-in link</button>
+    <p id="gate-msg" class="msg" role="status" aria-live="polite"></p>
+    <p class="fine">Access is by invitation. If your address is not on the workspace
+      allowlist, no link will get you in.</p>
+  </form>
+</div>
+
+<!-- Workspace -->
+<div id="app" class="app" hidden>
+  <aside class="sidebar">
+    <div class="brand">
+      <!-- Line-art cat over a 0 and a 1. Drawn rather than set as an emoji so
+           it inherits the theme colour and stays crisp at any size. -->
+      <svg class="brand-mark" viewBox="0 0 40 50" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+          <!-- ears -->
+          <path d="M9.5 14.5 L7.5 4.5 L17 9.5"/>
+          <path d="M30.5 14.5 L32.5 4.5 L23 9.5"/>
+          <!-- head -->
+          <path d="M20 9c7.2 0 12.5 5.4 12.5 12S27.2 33 20 33 7.5 27.6 7.5 21 12.8 9 20 9Z"/>
+          <!-- eyes -->
+          <path d="M15 19.5v2.5"/>
+          <path d="M25 19.5v2.5"/>
+          <!-- nose and mouth -->
+          <path d="M20 26.2 18.4 24.8h3.2Z"/>
+          <path d="M20 26.2v1.5"/>
+          <path d="M20 27.7c-1.4 1.5-3.6.9-3.9-.7"/>
+          <path d="M20 27.7c1.4 1.5 3.6.9 3.9-.7"/>
+          <!-- whiskers -->
+          <path d="M7 21.5H1.5"/>
+          <path d="M7.6 25.4 2.4 27.6"/>
+          <path d="M33 21.5h5.5"/>
+          <path d="M32.4 25.4 37.6 27.6"/>
+        </g>
+        <text class="brand-bits" x="13" y="47">0</text>
+        <text class="brand-bits" x="27" y="47">1</text>
+      </svg>
+      <span class="brand-name">cat</span>
+    </div>
+
+    <nav class="section">
+      <h2>Channels</h2>
+      <ul id="channels" class="channels"></ul>
+    </nav>
+
+    <nav class="section">
+      <h2>Agents</h2>
+      <ul id="agents" class="roster"></ul>
+    </nav>
+
+    <nav class="section grow">
+      <h2>People</h2>
+      <ul id="people" class="roster"></ul>
+    </nav>
+
+    <div class="me">
+      <div class="me-id">
+        <span id="me-name" class="me-name"></span>
+        <span id="me-badge" class="badge" hidden>can invoke agents</span>
+      </div>
+      <label class="fontpick">
+        Size
+        <select id="font-size" aria-label="Interface size">
+          <option value="15">Small</option>
+          <option value="16.5">Medium</option>
+          <option value="18">Large</option>
+          <option value="20.5">Larger</option>
+          <option value="23">Largest</option>
+        </select>
+      </label>
+      <button id="signout" class="link" type="button">Sign out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="channel-head">
+      <h1 id="channel-name"></h1>
+      <p id="channel-purpose"></p>
+      <a id="channel-repo" class="repo" target="_blank" rel="noopener" hidden></a>
+    </header>
+
+    <div id="messages" class="messages" aria-live="polite"></div>
+
+    <form id="composer" class="composer">
+      <textarea id="input" rows="1" placeholder="Message" autocomplete="off"></textarea>
+      <div class="composer-foot">
+        <span id="hint" class="hint"></span>
+        <button id="send" type="submit">Send</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
