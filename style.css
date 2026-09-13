@@ -136,6 +136,19 @@ body {
   text-anchor: middle;
 }
 
+/* Standing reminder, directly under the mark so it is read before anything
+   is typed rather than buried in a policy page nobody opens. */
+.notice {
+  margin: 0 16px 14px;
+  padding: 7px 9px;
+  background: #3a2f1a;
+  border-left: 2px solid #d7a55a;
+  border-radius: 4px;
+  color: #e2c894;
+  font-size: 0.733rem;
+  line-height: 1.4;
+}
+
 .section { padding: 0 8px 16px; min-height: 0; }
 .section.grow { flex: 1; overflow-y: auto; }
 
