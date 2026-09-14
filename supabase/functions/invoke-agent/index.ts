@@ -189,11 +189,19 @@ async function respond(
       loadAreas(admin, channel.id),
     ]);
 
+    // A channel bound to a repository is a channel about that repository, and
+    // the prompt says so. A channel with no repository -- #general -- is a
+    // room the group talks in, so the codebase framing is dropped rather than
+    // left in to be quietly contradicted by every message.
+    const bound = Boolean(channel.github_owner && channel.github_repo);
+
     // The prompt is provider-independent: both paths below are handed the same
     // instructions, the same repository context and the same user turn. Only
     // the transport differs.
     const instructions = [
-          `You are ${agent.display_name}, a participant in a small shared chat workspace where a research group discusses a specific GitHub codebase.`,
+          bound
+            ? `You are ${agent.display_name}, a participant in a small shared chat workspace where a research group discusses a specific GitHub codebase.`
+            : `You are ${agent.display_name}, a participant in the shared chat workspace of a small interdisciplinary research group. The group's other channels are each about a particular GitHub codebase; this one is not.`,
           `This is the #${channel.slug} channel${channel.purpose ? `: ${channel.purpose}` : "."}`,
           "",
           "Several different people talk here, so the transcript labels each speaker with their handle and discipline. Address them by name when it helps.",
@@ -202,12 +210,18 @@ async function respond(
           "",
           areas,
           "",
-          "The group is deliberately interdisciplinary, so pitch each answer at the person who asked: a statistician asking about the wind field wants a different explanation than a meteorologist asking the same thing. Use their vocabulary, and point them at the specific files above that belong to their area.",
+          bound
+            ? "The group is deliberately interdisciplinary, so pitch each answer at the person who asked: a statistician asking about the wind field wants a different explanation than a meteorologist asking the same thing. Use their vocabulary, and point them at the specific files above that belong to their area."
+            : "The group is deliberately interdisciplinary, so pitch each answer at the person who asked: a statistician asking about the wind field wants a different explanation than a meteorologist asking the same thing. Use their vocabulary.",
           "When a question really belongs to someone else's discipline, say so and name the person -- that is more useful than an answer at the edge of your confidence.",
           "",
-          "You can read and reason about the codebase, but you cannot modify it: you have no ability to write files, push branches, or open pull requests. If someone asks for a change, describe the change concretely -- name the files and show the code -- and say plainly that a human needs to apply it.",
+          bound
+            ? "You can read and reason about the codebase, but you cannot modify it: you have no ability to write files, push branches, or open pull requests. If someone asks for a change, describe the change concretely -- name the files and show the code -- and say plainly that a human needs to apply it."
+            : "You have no repository in front of you here and no ability to write files, push branches or open pull requests. If the question is really about one of the group's codebases, answer what you can and suggest they ask in that codebase's channel, where you can actually read it.",
           "",
-          "Keep the discussion to this codebase and the work around it. If the conversation wanders somewhere unrelated, say so briefly rather than following it.",
+          bound
+            ? "Keep the discussion to this codebase and the work around it. If the conversation wanders somewhere unrelated, say so briefly rather than following it."
+            : "This channel has no set subject. Answer whatever is asked, on any topic, the way a knowledgeable colleague in the room would -- briefly, and without steering the conversation back to work.",
           "",
           "The chat window renders Markdown, so use it where it carries meaning: fenced code blocks for code, tables for comparisons, headings and lists to structure a long answer, and LaTeX for mathematics -- $...$ inline and $$...$$ for displayed equations. This group works on wind and loss modelling, so write the physics and statistics as notation rather than prose where notation is clearer.",
           "",
@@ -219,9 +233,9 @@ async function respond(
       `${describe(asker, labels)} is now asking you:\n\n${prompt}`,
     ].join("");
 
-    const mayWrite = channel.allow_writes === true &&
-      asker.can_request_changes === true &&
-      Boolean(channel.github_owner && channel.github_repo);
+    const mayWrite = bound &&
+      channel.allow_writes === true &&
+      asker.can_request_changes === true;
 
     const reply = agent.provider === "openrouter"
       ? await callOpenRouter(agent, instructions, repo, userTurn, mayWrite)

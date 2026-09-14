@@ -36,8 +36,9 @@ CAT is a small chat workspace in which a research group discusses a specific
 GitHub codebase, with AI agents participating as named members of the
 conversation. It resembles Slack in shape---a sidebar of channels, a message
 list, a composer---but it is deliberately much smaller, and it makes one
-commitment Slack does not: each channel is bound to a repository, and the
-agents in that channel can read it.
+commitment Slack does not: a channel is bound to a repository, and the agents
+in that channel can read it. The exception proves the rule: \texttt{\#general}
+is bound to nothing, and is simply a room to talk in.
 
 The system is designed for a group of fewer than twenty people. That constraint
 is not incidental. It is what makes it reasonable to let every member read every
@@ -67,7 +68,9 @@ and what it cost; the composer names the agents available to summon.}
 \begin{itemize}
   \item \textbf{One channel per codebase.} \texttt{\#multimodel} is about
     \texttt{github.com/metaphorz/Multimodel}. Adding a repository means adding
-    a row, not deploying anything.
+    a row, not deploying anything. A channel with no repository named on it,
+    such as \texttt{\#general}, is a conversation rather than a codebase; the
+    agent is told as much and drops the codebase framing.
   \item \textbf{Agents are participants, not features.} They appear in the
     roster, they are addressed by name, and their replies are ordinary messages
     in the transcript.
@@ -300,10 +303,19 @@ intend to use---a session created in one browser does not exist in another.
 
 \subsection{Channels}
 
-Each channel corresponds to a repository, named for it, and the header links
-directly to it on GitHub. Selecting a channel loads its history and subscribes
-to live updates; the channel is reflected in the page URL, so a particular
-channel can be linked to or bookmarked.
+A channel usually corresponds to a repository, named for it, and the header
+links directly to it on GitHub. Selecting a channel loads its history and
+subscribes to live updates; the channel is reflected in the page URL, so a
+particular channel can be linked to or bookmarked.
+
+\texttt{\#general} is the one channel with no repository behind it. The header
+shows no link, the agent is told there is no codebase in front of it, and the
+instruction to keep the discussion on the code is replaced by permission to
+follow the conversation wherever it goes. Agents cannot open pull requests
+there, since there is no repository to write to. It is meant to accumulate and
+be cleared; \texttt{tools/flush-channel.sh} writes the transcript to a local
+file and then deletes every message in the channel, leaving the channel itself
+in place.
 
 \subsection{Talking to an agent}
 
@@ -441,6 +453,9 @@ values
 If the repository is private, the configured GitHub token needs read access to
 it as well. Consider also populating \texttt{channel\_areas} for the new
 channel, since that is what lets the agent direct people to the right files.
+
+Leaving \texttt{github\_owner} and \texttt{github\_repo} null makes a channel
+that is about nothing in particular, as \texttt{\#general} is.
 
 \subsection{Adding an agent}
 

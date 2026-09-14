@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1789392522.20299 "manual.tex" "manual.pdf" "manual" 1789392523.63567 0
+["pdflatex"] 1789407682.26207 "manual.tex" "manual.pdf" "manual" 1789407683.54763 0
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/jknappen/ec/tcbx1095.tfm" 1136768653 1536 0adca69c597a47fe7664bf81057bb53b ""
@@ -98,10 +98,10 @@
   "figures/schema.png" 1789392461.60866 218929 d36fbac2b63f3077d5464cb5b780e772 ""
   "figures/signin.png" 1789392327.25154 78416 f7e4e23f9b9cd434186a44a5bc380060 ""
   "figures/trust.png" 1789327772.58623 115424 46da3bc03b546430bb36e171ed93c2fa ""
-  "manual.aux" 1789392523.58677 7422 d0e073bf93f82354dc6f04ba595c8dff "pdflatex"
-  "manual.out" 1789392523.58749 4603 59bf6d9edc22a2152f7e167baf61a229 "pdflatex"
-  "manual.tex" 1789392520.73716 24398 f3d34ac280e28621957a46819b78c94d ""
-  "manual.toc" 1789392523.58769 2515 6a50c22942b51b9c6af23d5b59807d1b "pdflatex"
+  "manual.aux" 1789407683.50277 7423 c5ff8b2f423bb6edba6867c62b24b0da "pdflatex"
+  "manual.out" 1789407683.5036 4603 59bf6d9edc22a2152f7e167baf61a229 "pdflatex"
+  "manual.tex" 1789407664.29543 25378 2c9cc47641df4a7e745aad1b0c6f02e7 ""
+  "manual.toc" 1789407683.50378 2516 a8b5bbf4c1d2ebeb0831412320e83233 "pdflatex"
   (generated)
   "manual.aux"
   "manual.log"
