@@ -1,0 +1,25 @@
+digraph prflow {
+  rankdir=TB; bgcolor="white";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        color="#4a5568", margin="0.16,0.09"];
+  edge [color="#4a5568", fontname="Helvetica", fontsize=9];
+
+  a [label="“@claude make a PR to …”", fillcolor="#e8eefc"];
+  b [label="Is the channel writable,\land may this person request changes?\l", fillcolor="#fdf0d5"];
+  no [label="The tool is never offered.\lThe agent simply answers.\l", fillcolor="#fde8e8"];
+  c [label="Claude is offered request_code_change\land decides whether it was meant\l", fillcolor="#fdf0d5"];
+  talk [label="Not an instruction:\lit answers instead\l", fillcolor="#eaf5ec"];
+  d [label="code_requests row recorded\lrepository_dispatch fired\l", fillcolor="#fdf0d5"];
+  e [label="GitHub Actions, in the repository\lbrief + full conversation\l", fillcolor="#f3e8fd"];
+  f [label="Coding agent works on a checkout", fillcolor="#f3e8fd"];
+  g [label="Branch cat/request-N\lpull request opened\l", fillcolor="#f3e8fd"];
+  h [label="agent-callback posts the link\linto the channel\l", fillcolor="#eaf5ec"];
+  i [label="A person reviews and merges.\lNothing merges itself.\l", fillcolor="#e8eefc"];
+
+  a -> b;
+  b -> no   [label="  either is false", color="#c53030", fontcolor="#c53030"];
+  b -> c    [label="  both true"];
+  c -> talk [label="  merely discussing", color="#6b7483", fontcolor="#6b7483"];
+  c -> d    [label="  explicitly asked"];
+  d -> e -> f -> g -> h -> i;
+}

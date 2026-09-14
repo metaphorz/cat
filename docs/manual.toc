@@ -8,20 +8,24 @@
 \contentsline {subsection}{\numberline {3.1}A subtlety worth stating}{6}{subsection.3.1}%
 \contentsline {section}{\numberline {4}Data model}{6}{section.4}%
 \contentsline {subsection}{\numberline {4.1}Specialties and code areas}{6}{subsection.4.1}%
-\contentsline {subsection}{\numberline {4.2}Messages}{6}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.2}Code requests}{7}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Messages}{7}{subsection.4.3}%
 \contentsline {section}{\numberline {5}Using CAT}{7}{section.5}%
 \contentsline {subsection}{\numberline {5.1}Signing in}{7}{subsection.5.1}%
 \contentsline {subsection}{\numberline {5.2}Channels}{7}{subsection.5.2}%
 \contentsline {subsection}{\numberline {5.3}Talking to an agent}{7}{subsection.5.3}%
-\contentsline {subsection}{\numberline {5.4}Interface size}{7}{subsection.5.4}%
-\contentsline {section}{\numberline {6}Administration}{7}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Adding a person}{7}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Seeing who is in the workspace}{8}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Adding a channel}{8}{subsection.6.3}%
-\contentsline {subsection}{\numberline {6.4}Adding an agent}{8}{subsection.6.4}%
-\contentsline {section}{\numberline {7}Deployment}{9}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Supabase}{9}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}The Edge Function}{9}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}GitHub Pages}{9}{subsection.7.3}%
-\contentsline {section}{\numberline {8}Testing}{9}{section.8}%
-\contentsline {section}{\numberline {9}Limitations and future work}{9}{section.9}%
+\contentsline {subsection}{\numberline {5.4}Formatting, tables and mathematics}{8}{subsection.5.4}%
+\contentsline {subsection}{\numberline {5.5}Asking for a change}{8}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Interface size}{8}{subsection.5.6}%
+\contentsline {section}{\numberline {6}Administration}{8}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Adding a person}{8}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Seeing who is in the workspace}{9}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Adding a channel}{9}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Adding an agent}{9}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Deployment}{10}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Supabase}{10}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}The Edge Function}{10}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{10}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}GitHub Pages}{11}{subsection.7.4}%
+\contentsline {section}{\numberline {8}Testing}{11}{section.8}%
+\contentsline {section}{\numberline {9}Limitations and future work}{11}{section.9}%

@@ -62,6 +62,20 @@ digraph schema {
       <tr><td align="left">body, status, metadata</td></tr>
     </table>>];
 
+  code_requests [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="4">
+      <tr><td bgcolor="#fdf0d5"><b>code_requests</b></td></tr>
+      <tr><td align="left">id (pk)</td></tr>
+      <tr><td align="left">channel_id, message_id</td></tr>
+      <tr><td align="left">requested_by, agent_slug</td></tr>
+      <tr><td align="left">brief, status</td></tr>
+      <tr><td align="left">branch, pr_url</td></tr>
+    </table>>];
+
+  channels -> code_requests;
+  members  -> code_requests [label=" requested by "];
+  messages -> code_requests [style=dashed, label=" announced in "];
+
   allowlist -> members [label=" seeds ", style=dashed];
   specialties -> members;
   specialties -> channel_areas;

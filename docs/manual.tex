@@ -74,22 +74,23 @@ and what it cost; the composer names the agents available to summon.}
   \item \textbf{An interdisciplinary group is the normal case.} Members carry a
     discipline, and the agent is told who is asking, so a statistician and a
     meteorologist asking the same question get different answers.
-  \item \textbf{Permissions are enforced where they cannot be bypassed.}
+  \item \textbf{Permissions are enforced where they cannot be bypassed,} and
+    are separated by consequence: asking a question, spending money, and
+    writing to a repository are three different decisions.
   \item \textbf{No build step.} The client is three static files. It is
     deployed by copying them to GitHub Pages.
 \end{itemize}
 
 \subsection{What CAT is not}
 
-The agents read and discuss. They cannot write files, push branches, or open
-pull requests---there is no code path by which they could. Having an agent
-propose real changes through a GitHub Action is a plausible next phase, but it
-is a different trust decision and deserves to be made deliberately rather than
-inherited.
+An agent can open a pull request when explicitly asked, on a channel whose
+repository permits it, by a person permitted to ask. It cannot merge one.
+Every change an agent makes arrives as a branch and a pull request for a human
+to review, and that review is the point rather than a formality---see
+Section~\ref{sec:changes}.
 
-There are also no threads, reactions, file uploads, or message editing.
-Recreating Slack is not the goal; having somewhere to think about a codebase
-together is.
+There are no threads, reactions, file uploads, or message editing. Recreating
+Slack is not the goal; having somewhere to think about a codebase together is.
 
 \section{Architecture}
 
@@ -176,19 +177,30 @@ because they fail differently.
 
 \begin{table}[h]
 \centering
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-& Read & Post & Invoke agents \\
+& Read & Post & Invoke agents & Request changes \\
 \midrule
-Paul & yes & yes & yes \\
-Other members & yes & yes & no \\
-Agents & yes & yes & --- \\
-Anyone else & no & no & no \\
+Paul & yes & yes & yes & yes \\
+Other members & yes & yes & no & no \\
+Agents & yes & yes & --- & --- \\
+Anyone else & no & no & no & no \\
 \bottomrule
 \end{tabular}
-\caption{The default arrangement. Permission to invoke agents is granted per
-person in the \texttt{members} table.}
+\caption{The default arrangement. Both agent permissions are granted per person
+in the \texttt{members} table, and both default to false.}
 \end{table}
+
+The last column is deliberately not the same permission as the third.
+Invoking an agent spends money; asking one to change code also writes to a
+repository. Folding them together would mean that granting a collaborator the
+ability to ask a question also granted them the ability to commit.
+
+A third control sits on the channel rather than the person:
+\texttt{channels.allow\_writes}. A repository can be discussed without being
+writable, and a channel may only ever write to the repository it is bound to.
+The blast radius of the whole feature is therefore exactly the repositories
+named in channels that have been deliberately opened.
 
 \subsection{A subtlety worth stating}
 
@@ -240,6 +252,16 @@ question it can talk about surface roughness and point at
 \texttt{pipeline/windfield.py}. When a question lands squarely in someone else's
 discipline, it is instructed to say so and name that person rather than answer
 at the edge of its competence.
+
+\subsection{Code requests}
+
+\texttt{code\_requests} records every pull request an agent has been asked to
+open: the brief, who asked, and how it ended---\texttt{dispatched},
+\texttt{running}, \texttt{opened} or \texttt{failed}, with the branch and pull
+request URL once they exist. It is kept apart from \texttt{messages} because it
+has a lifecycle, and because it is the audit trail for everything the system
+has ever written to a repository. Every member can read it; only the service
+role writes it.
 
 \subsection{Messages}
 
@@ -301,6 +323,59 @@ The agent is given the recent conversation, the roster with everyone's
 discipline, the specialty-to-path map for that channel, and the repository's
 overview document and source file listing. It is told who asked and what their
 discipline is.
+
+\subsection{Formatting, tables and mathematics}
+
+Messages are rendered as Markdown, and agents are told so. Fenced code blocks,
+tables with column alignment, headings, lists, block quotes and rules all
+render. Mathematics is written in \LaTeX---\texttt{\$\ldots\$} inline and
+\texttt{\$\$\ldots\$\$} displayed---and typeset with KaTeX, so a wind field can
+be discussed in notation rather than in prose describing notation.
+
+The renderer is written by hand rather than taken from a library. Message
+content is untrusted, so everything is escaped before any structure is applied
+to it; adopting a Markdown library would mean adopting somebody else's
+sanitiser along with it.
+
+\subsection{Asking for a change}
+\label{sec:changes}
+
+On a channel whose repository allows writes, someone permitted to request
+changes can simply ask:
+
+\begin{lstlisting}
+@claude make a PR that samples cp and rmax dependently, the way
+we just discussed
+\end{lstlisting}
+
+There is no special command word. Whether a pull request was actually
+requested is decided by the model, through a tool it is offered only when both
+permissions already allow it. This matters more than it might appear: ``make a
+PR for that'' and ``we shouldn't open a PR for this yet'' differ by something
+only a reader of English can judge, and a keyword match would get the second
+one wrong.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.66\textwidth]{pr-flow.png}
+\caption{Asking for a change. The permission questions are settled before the
+model is given the opportunity, and the last step is always a person.}
+\label{fig:prflow}
+\end{figure}
+
+What is dispatched is the brief \emph{and the conversation}. A decision reached
+over twenty messages does not survive being restated in one sentence---the
+constraints, the alternatives considered, and the reasons for rejecting them
+live in the discussion. The coding agent receives both and is told to read
+both.
+
+The job then works on a real checkout, so it can read the surrounding code and
+run the tests, rather than patching blind. It pushes a \texttt{cat/request-N}
+branch and opens a pull request; it never touches the default branch. The link
+is posted back into the channel, and so is any failure---a request that
+disappears silently from the conversation is worse than one that fails loudly.
+
+Nothing merges itself.
 
 \subsection{Interface size}
 
@@ -414,6 +489,46 @@ The GitHub token is optional. Without it the agent can still discuss the
 conversation, but a private repository is invisible to it; it is told so, and
 says so, rather than guessing.
 
+\subsection{Enabling pull requests for a repository}
+
+Three further pieces, and they are deliberately separate from the read path.
+
+First, a \emph{second} GitHub credential. Reading a repository and writing to
+one are different privileges and should not share a token. Use a fine-grained
+personal access token limited to the single repository, with \textbf{Contents}
+and \textbf{Pull requests} set to read and write, and nothing else. It is worth
+confirming the scope empirically rather than trusting the form: the token
+should return 404 for any other private repository you own.
+
+\begin{lstlisting}[language=bash]
+supabase secrets set --project-ref <ref> GITHUB_WRITE_TOKEN=...
+supabase secrets set --project-ref <ref> CAT_CALLBACK_SECRET=...
+supabase functions deploy agent-callback --project-ref <ref> --no-verify-jwt
+\end{lstlisting}
+
+The callback runs without JWT verification because GitHub Actions holds no
+Supabase session; it authenticates with the shared secret instead. It is
+narrow by design---it can update one code request and post one message about
+it---so that the service role key stays in Supabase rather than being handed
+to GitHub.
+
+Second, install \texttt{workflows/multimodel-cat-agent.yml} into the target
+repository at \texttt{.github/workflows/cat-agent.yml}, with three repository
+secrets: \texttt{ANTHROPIC\_API\_KEY} for the coding agent,
+\texttt{CAT\_CALLBACK\_URL} and \texttt{CAT\_CALLBACK\_SECRET} for the return
+path. Note that the write token above deliberately lacks Workflows permission,
+so the agent cannot modify its own CI; install the file with a separate
+credential.
+
+Third, open the channel:
+
+\begin{lstlisting}[language=SQL]
+update public.channels set allow_writes = true where slug = 'multimodel';
+update public.members  set can_request_changes = true where username = 'paul';
+\end{lstlisting}
+
+Both default to false, so a repository is never writable by accident.
+
 \subsection{GitHub Pages}
 
 Pages must be served from a public repository unless the account has a paid
@@ -446,9 +561,15 @@ checks that the composer offers the agent, not that a vendor answers.
 \section{Limitations and future work}
 
 \begin{itemize}
-  \item \textbf{Agents cannot change code.} Dispatching a GitHub Action that
-    opens a pull request is the obvious next phase, and the schema already
-    reserves \texttt{metadata} for recording the resulting branch or PR.
+  \item \textbf{An agent can open a pull request but cannot review one.} It
+    does not see CI results, reviewer comments, or whether the branch still
+    merges cleanly a week later. The pull request is where its involvement
+    ends.
+  \item \textbf{The conversation is an input to a process that writes code.}
+    On a writable channel, everything typed there may reach a job holding a
+    write credential. With a single person permitted to request changes this is
+    academic; it stops being academic the moment a second person is granted
+    that permission.
   \item \textbf{Every member sees every channel.} Reasonable below twenty
     people; it would need per-channel membership beyond that.
   \item \textbf{Repository context is a file listing and an overview document,}
