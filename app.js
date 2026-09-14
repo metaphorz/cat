@@ -321,15 +321,26 @@ async function openChannel(channel) {
   updateHint();
 }
 
+// The most recent HISTORY_LIMIT messages, oldest first for display.
+// Ordering ascending and limiting would take the oldest ones instead, which
+// looks identical until a channel passes the limit and then silently hides
+// everything anyone has said recently.
+const HISTORY_LIMIT = 300;
+
 async function loadMessages() {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("messages")
     .select("id, channel_id, author_id, agent_slug, body, status, metadata, created_at")
     .eq("channel_id", state.channel.id)
-    .order("created_at", { ascending: true })
-    .limit(300);
+    .order("created_at", { ascending: false })
+    .limit(HISTORY_LIMIT);
 
-  state.messages = data ?? [];
+  if (error || !data) {
+    console.error("[cat] could not load messages:", error);
+    return;
+  }
+
+  state.messages = data.reverse();
   renderMessages();
 }
 
