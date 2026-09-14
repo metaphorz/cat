@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1789334131.7917 "manual.tex" "manual.pdf" "manual" 1789334132.89513 0
+["pdflatex"] 1789392014.19677 "manual.tex" "manual.pdf" "manual" 1789392015.31241 0
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/jknappen/ec/tcbx1095.tfm" 1136768653 1536 0adca69c597a47fe7664bf81057bb53b ""
@@ -90,13 +90,14 @@
   "figures/agent-flow.png" 1789327841.52362 173304 306efc8d53d34b0be5f1f2a1cd792ca5 ""
   "figures/architecture.png" 1789327800.14991 219698 38c02e8c4480fa12b6cf194d7bff9d4c ""
   "figures/interface.png" 1789334120.38264 942014 6e5c70ee08e20b4cb36c80f88beb787b ""
+  "figures/mark.png" 1789391999.74498 12899 0b181894211de754ab957937746ea729 ""
   "figures/schema.png" 1789327800.23768 142105 e5510030044eb9c5a7538059465af566 ""
   "figures/signin.png" 1789327841.39202 23896 78c26aa8e3cccab912073bdff0ecf862 ""
   "figures/trust.png" 1789327772.58623 115424 46da3bc03b546430bb36e171ed93c2fa ""
-  "manual.aux" 1789334132.85659 6355 cb94fb1a67980a751c6faebddb711334 "pdflatex"
-  "manual.out" 1789334132.85741 3810 24518126955d2e47536ecf923c9bddc5 "pdflatex"
-  "manual.tex" 1789334107.37431 18413 7beed14d5b3fbc796d37d3449f6ea949 ""
-  "manual.toc" 1789334132.85757 2139 11760ab5026cd31a2695cd4fe4b978cc "pdflatex"
+  "manual.aux" 1789392015.27334 6355 30abded17e49f001c0bdd57ab3acdc4d "pdflatex"
+  "manual.out" 1789392015.27416 3810 24518126955d2e47536ecf923c9bddc5 "pdflatex"
+  "manual.tex" 1789392012.9353 18475 7cfed2269692f9617b7a479a49b7c747 ""
+  "manual.toc" 1789392015.27432 2139 dca8f997b7965f1bc5cc59b04b8f60df "pdflatex"
   (generated)
   "manual.aux"
   "manual.log"
