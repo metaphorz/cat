@@ -25,3 +25,11 @@ on conflict (slug) do update
   set name     = excluded.name,
       purpose  = excluded.purpose,
       position = excluded.position;
+
+-- Amended 2026-09-14, after Paul set the house rule: #general is for
+-- technical discussion that is not about one particular codebase, not a
+-- social channel. The purpose line is what the agent is told the channel is
+-- for, so it has to say the same thing the ground rules do.
+update public.channels
+set purpose = 'Technical discussion that is not about one particular codebase.'
+where slug = 'general';

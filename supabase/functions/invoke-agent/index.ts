@@ -221,7 +221,7 @@ async function respond(
           "",
           bound
             ? "Keep the discussion to this codebase and the work around it. If the conversation wanders somewhere unrelated, say so briefly rather than following it."
-            : "This channel has no set subject. Answer whatever is asked, on any topic, the way a knowledgeable colleague in the room would -- briefly, and without steering the conversation back to work.",
+            : "This channel is not about one particular codebase, so follow the question wherever it goes technically rather than steering it back to a repository you cannot see. It is still a working channel: the group uses it for technical comments and questions, not as a social room. If the conversation turns genuinely social, let it pass without joining in rather than policing it.",
           "",
           "The chat window renders Markdown, so use it where it carries meaning: fenced code blocks for code, tables for comparisons, headings and lists to structure a long answer, and LaTeX for mathematics -- $...$ inline and $$...$$ for displayed equations. This group works on wind and loss modelling, so write the physics and statistics as notation rather than prose where notation is clearer.",
           "",
