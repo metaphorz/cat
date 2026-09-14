@@ -106,7 +106,15 @@ jobs:
           Do not commit; the workflow does that.
           PROMPT_EOF
           )
-          claude -p "$PROMPT" --dangerously-skip-permissions 2>&1 | tee /tmp/cat/agent.log
+          # Flags verified against Claude Code 2.1.236. --dangerously-skip-permissions
+          # is the right choice here and not as alarming as it sounds: the job runs
+          # in a disposable container on a checkout, with a token that cannot reach
+          # any other repository, and nothing it produces is merged without review.
+          claude -p "$PROMPT" \
+            --model opus \
+            --permission-mode bypassPermissions \
+            --dangerously-skip-permissions \
+            2>&1 | tee /tmp/cat/agent.log
 
       - name: Commit to a branch and open the pull request
         id: pr
