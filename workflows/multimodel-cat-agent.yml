@@ -9,9 +9,16 @@
 # a permitted channel's agent to open a pull request.
 #
 # Required repository secrets:
-#   ANTHROPIC_API_KEY     for the coding agent
+#   OPENROUTER_API_KEY    for the coding agent
 #   CAT_CALLBACK_URL      https://<ref>.supabase.co/functions/v1/agent-callback
 #   CAT_CALLBACK_SECRET   shared with that endpoint
+#
+# The coding agent bills through OpenRouter, the same key and the same balance
+# as the chat agents, so the workspace has one place where money is spent
+# rather than two. OpenRouter serves an Anthropic-shaped /v1/messages endpoint,
+# which is what ANTHROPIC_BASE_URL points the CLI at; tool use and the model id
+# below were both verified against it. To go back to billing Anthropic
+# directly, drop the two variables and set ANTHROPIC_API_KEY instead.
 #
 # Two properties worth preserving if this is edited:
 #   * it never pushes to the default branch, only to cat/* branches
@@ -82,7 +89,8 @@ jobs:
 
       - name: Make the change
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: https://openrouter.ai/api
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           set -o pipefail
           PROMPT=$(cat <<'PROMPT_EOF'
@@ -110,8 +118,11 @@ jobs:
           # is the right choice here and not as alarming as it sounds: the job runs
           # in a disposable container on a checkout, with a token that cannot reach
           # any other repository, and nothing it produces is merged without review.
+          # Pinned rather than the 'opus' alias: the alias resolves client-side
+          # to whatever the CLI currently considers opus, and the gateway has to
+          # recognise the result. 'claude-opus-5' is the id verified against it.
           claude -p "$PROMPT" \
-            --model opus \
+            --model claude-opus-5 \
             --permission-mode bypassPermissions \
             --dangerously-skip-permissions \
             2>&1 | tee /tmp/cat/agent.log

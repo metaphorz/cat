@@ -1,7 +1,7 @@
 # Setting up cat
 
 Roughly thirty minutes, most of it waiting on Supabase. Everything here is on
-free tiers except the Anthropic API calls.
+free tiers except the model calls, which are billed by OpenRouter.
 
 ## 1. Create the Supabase project
 
@@ -117,7 +117,7 @@ supabase functions deploy invoke-agent
 Then give it its secrets:
 
 ```sh
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+supabase secrets set OPENROUTER_API_KEY=sk-or-v1-...
 supabase secrets set GITHUB_TOKEN=ghp_...      # see below
 ```
 
@@ -130,10 +130,14 @@ fine-grained personal access token with **read-only Contents** access to just
 the repositories you plan to open channels for is enough. Without it,
 everything still works; the agent is simply told it could not read the repo.
 
-**The Anthropic key** comes from the [Anthropic
-Console](https://console.anthropic.com/settings/keys). This is the one part of
-the system that costs money. It never touches the browser — it lives only here,
-which is the whole reason the edge function exists.
+**The OpenRouter key** comes from
+[openrouter.ai/keys](https://openrouter.ai/keys), against a prepaid balance.
+Every agent goes through it — `@claude`, `@codex` and `@gemini` alike — so this
+is the one part of the system that costs money, and one balance to watch rather
+than three. Your Anthropic, OpenAI and Google accounts are not billed; whatever
+credit they hold is irrelevant to this workspace. The key never touches the
+browser — it lives only here, which is the whole reason the edge function
+exists.
 
 ## 5. Publish the page
 
@@ -204,7 +208,7 @@ answers at the right discipline, so it is worth doing up front.
 
 They then sign in themselves — the member record is created on first login.
 `can_invoke_agent = false` means they can read everything and talk to everyone,
-but cannot spend your Anthropic budget. To change someone's mind later:
+but cannot spend your OpenRouter balance. To change someone's mind later:
 
 ```sql
 update public.members set can_invoke_agent = true where email = 'alice@example.edu';
@@ -262,14 +266,26 @@ values ('hurricane', 'hurricane', 'Storm track generation.', 'metaphorz', 'Hurri
 The channel appears for everyone on their next page load. If the repository is
 private, the same `GITHUB_TOKEN` needs read access to it as well.
 
-## Adding @codex later
+## Adding another agent
 
-Three steps, none of which touch the frontend:
+One statement, no deployment. Because every agent reaches its model through
+OpenRouter, a new one needs no new key and no new code path — only a row naming
+a model OpenRouter serves:
 
-1. `insert into public.agents (slug, display_name, provider, model) values ('codex', 'Codex', 'openai', 'gpt-...');`
-2. Add an OpenAI branch in `supabase/functions/invoke-agent/index.ts` where it
-   currently rejects any `provider` other than `anthropic`.
-3. `supabase secrets set OPENAI_API_KEY=...` and redeploy the function.
+```sql
+insert into public.agents (slug, display_name, provider, model)
+values ('grok', 'Grok', 'openrouter', 'x-ai/grok-4');
+```
+
+It appears in the composer on everyone's next page load. `agents.model` is the
+OpenRouter model id, so changing which model answers as `@claude` is one
+`update` and no redeploy.
+
+The edge function does still carry a native `anthropic` provider branch, which
+reads `ANTHROPIC_API_KEY` and bills Anthropic directly. It buys prompt caching
+of the repository block and adaptive thinking, which do not survive a proxy —
+worth knowing about if the repo context ever gets expensive, but it is not the
+path this workspace uses.
 
 The permission check, the pending-message mechanism, the transcript, the repo
 context and the UI are all provider-agnostic already.

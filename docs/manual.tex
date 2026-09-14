@@ -529,9 +529,12 @@ to GitHub.
 
 Second, install \texttt{workflows/multimodel-cat-agent.yml} into the target
 repository at \texttt{.github/workflows/cat-agent.yml}, with three repository
-secrets: \texttt{ANTHROPIC\_API\_KEY} for the coding agent,
+secrets: \texttt{OPENROUTER\_API\_KEY} for the coding agent,
 \texttt{CAT\_CALLBACK\_URL} and \texttt{CAT\_CALLBACK\_SECRET} for the return
-path. Note that the write token above deliberately lacks Workflows permission,
+path. The coding agent bills through OpenRouter like the chat agents do, so the
+workspace spends from one balance rather than two; the workflow points the CLI
+at OpenRouter's Anthropic-shaped endpoint through \texttt{ANTHROPIC\_BASE\_URL}
+and passes the key as \texttt{ANTHROPIC\_AUTH\_TOKEN}. Note that the write token above deliberately lacks Workflows permission,
 so the agent cannot modify its own CI; install the file with a separate
 credential.
 
