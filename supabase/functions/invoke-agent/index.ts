@@ -27,6 +27,9 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN") ?? "";
+// Deliberately a second, narrower credential: reading a repository and writing
+// to one are different privileges and should not share a token.
+const GITHUB_WRITE_TOKEN = Deno.env.get("GITHUB_WRITE_TOKEN") ?? "";
 
 // How much of the channel's conversation the agent is shown.
 const TRANSCRIPT_LIMIT = 40;
@@ -72,7 +75,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: member } = await admin
     .from("members")
-    .select("id, display_name, username, specialty, can_invoke_agent")
+    .select("id, display_name, username, specialty, can_invoke_agent, can_request_changes")
     .eq("id", userId)
     .maybeSingle();
 
@@ -112,7 +115,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: channel } = await admin
     .from("channels")
-    .select("id, slug, name, purpose, github_owner, github_repo, github_branch")
+    .select("id, slug, name, purpose, github_owner, github_repo, github_branch, allow_writes")
     .eq("id", channel_id)
     .maybeSingle();
 
@@ -159,12 +162,15 @@ type Channel = {
   github_owner: string | null;
   github_repo: string | null;
   github_branch: string;
+  allow_writes: boolean;
 };
 
 type Person = {
+  id?: string;
   display_name: string;
   username: string | null;
   specialty: string | null;
+  can_request_changes?: boolean;
 };
 
 async function respond(
@@ -213,9 +219,28 @@ async function respond(
       `${describe(asker, labels)} is now asking you:\n\n${prompt}`,
     ].join("");
 
+    const mayWrite = channel.allow_writes === true &&
+      asker.can_request_changes === true &&
+      Boolean(channel.github_owner && channel.github_repo);
+
     const reply = agent.provider === "openrouter"
-      ? await callOpenRouter(agent, instructions, repo, userTurn)
+      ? await callOpenRouter(agent, instructions, repo, userTurn, mayWrite)
       : await callAnthropic(agent, instructions, repo, userTurn);
+
+    // The model asked to open a pull request. Everything about whether it was
+    // allowed to was decided before the tool was ever offered.
+    if (reply.codeChange && mayWrite) {
+      await dispatchCodeChange(admin, {
+        messageId,
+        agent,
+        channel,
+        asker,
+        transcript,
+        title: reply.codeChange.title,
+        brief: reply.codeChange.brief,
+      });
+      return;
+    }
 
     if (reply.refused) {
       await fail(admin, messageId, "I declined to answer that one.", {
@@ -259,6 +284,7 @@ type AgentReply = {
     cache_read_input_tokens: number;
   };
   refused?: Record<string, unknown>;
+  codeChange?: { title: string; brief: string };
 };
 
 const NO_USAGE = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0 };
@@ -359,11 +385,40 @@ function systemContent(
 // @codex or @gemini a row in the agents table rather than new code -- at the
 // cost of the Anthropic-specific features above, which the OpenAI-compatible
 // wire format has nowhere to put.
+// Offered only when the caller and the channel both permit writing. The
+// description does the real work: the model, not a keyword match, decides
+// whether "make a PR for that" and "we shouldn't open a PR yet" mean the same
+// thing -- and they do not.
+const CODE_CHANGE_TOOL = {
+  type: "function",
+  function: {
+    name: "request_code_change",
+    description:
+      "Open a pull request against this channel's repository. Call this ONLY when someone has explicitly asked you to make, open or raise a pull request. Do not call it while merely discussing a possible change, when someone is thinking aloud about what might be done, when they are asking what a change would involve, or when they have said not to yet. If you are unsure whether they meant it as an instruction, ask them instead of calling this.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "A short pull request title in the imperative mood.",
+        },
+        brief: {
+          type: "string",
+          description:
+            "What the change should be: which files, what behaviour, and any constraints or decisions the conversation settled on. The engineer who receives this also receives the full conversation, but should not have to reconstruct the task from it.",
+        },
+      },
+      required: ["title", "brief"],
+    },
+  },
+};
+
 async function callOpenRouter(
   agent: Agent,
   instructions: string,
   repo: string | null,
   userTurn: string,
+  mayWrite = false,
 ): Promise<AgentReply> {
   if (!OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY is not set for this function.");
@@ -383,6 +438,7 @@ async function callOpenRouter(
         { role: "system", content: systemContent(agent.model, instructions, repo) },
         { role: "user", content: userTurn },
       ],
+      ...(mayWrite ? { tools: [CODE_CHANGE_TOOL] } : {}),
     }),
   });
 
@@ -400,8 +456,28 @@ async function callOpenRouter(
     );
   }
 
+  const message = data.choices?.[0]?.message ?? {};
+
+  // deno-lint-ignore no-explicit-any
+  const call = (message.tool_calls ?? []).find((c: any) =>
+    c?.function?.name === "request_code_change"
+  );
+
+  let codeChange: { title: string; brief: string } | undefined;
+  if (call) {
+    try {
+      const args = JSON.parse(call.function.arguments ?? "{}");
+      if (args.title && args.brief) {
+        codeChange = { title: String(args.title), brief: String(args.brief) };
+      }
+    } catch {
+      // A malformed tool call is treated as no tool call; the text still stands.
+    }
+  }
+
   return {
-    text: (data.choices?.[0]?.message?.content ?? "").trim(),
+    text: (message.content ?? "").trim(),
+    codeChange,
     model: data.model ?? agent.model,
     usage: {
       input_tokens: data.usage?.prompt_tokens ?? 0,
@@ -409,6 +485,112 @@ async function callOpenRouter(
       cache_read_input_tokens: 0,
     },
   };
+}
+
+// How much conversation the coding agent is given. The brief says what to do;
+// the transcript says why, which is usually where the constraints actually
+// live -- a decision reached over twenty messages does not survive being
+// restated in one sentence.
+const DISPATCH_TRANSCRIPT_LIMIT = 24000;
+
+async function dispatchCodeChange(
+  admin: SupabaseClient,
+  args: {
+    messageId: number;
+    agent: Agent;
+    channel: Channel;
+    asker: Person;
+    transcript: string;
+    title: string;
+    brief: string;
+  },
+): Promise<void> {
+  const { messageId, agent, channel, asker, transcript, title, brief } = args;
+  const repo = `${channel.github_owner}/${channel.github_repo}`;
+
+  const { data: request } = await admin
+    .from("code_requests")
+    .insert({
+      channel_id: channel.id,
+      message_id: messageId,
+      requested_by: asker.id ?? null,
+      agent_slug: agent.slug,
+      brief: `${title}\n\n${brief}`,
+      status: "dispatched",
+    })
+    .select("id")
+    .single();
+
+  if (!GITHUB_WRITE_TOKEN) {
+    await fail(
+      admin,
+      messageId,
+      "I was asked to open a pull request, but no write credential is configured for this workspace.",
+      { code_request_id: request?.id ?? null },
+    );
+    if (request) {
+      await admin.from("code_requests")
+        .update({ status: "failed", detail: "GITHUB_WRITE_TOKEN is not set." })
+        .eq("id", request.id);
+    }
+    return;
+  }
+
+  const res = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${GITHUB_WRITE_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "User-Agent": "cat-workspace",
+    },
+    body: JSON.stringify({
+      event_type: "cat-code-request",
+      client_payload: {
+        request_id: request?.id ?? null,
+        channel: channel.slug,
+        base: channel.github_branch,
+        requested_by: asker.display_name,
+        title,
+        brief,
+        transcript: transcript.slice(-DISPATCH_TRANSCRIPT_LIMIT),
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = `GitHub refused the dispatch (${res.status}): ${(await res.text()).slice(0, 200)}`;
+    await fail(admin, messageId, detail, { code_request_id: request?.id ?? null });
+    if (request) {
+      await admin.from("code_requests")
+        .update({ status: "failed", detail }).eq("id", request.id);
+    }
+    return;
+  }
+
+  // The chat message becomes the visible record of the request. The workflow
+  // updates it again when the pull request exists.
+  await admin
+    .from("messages")
+    .update({
+      body: [
+        `Opening a pull request against \`${repo}\`.`,
+        "",
+        `**${title}**`,
+        "",
+        brief,
+        "",
+        "_Working on it. I will post the link here when the branch is pushed._",
+      ].join("\n"),
+      status: "complete",
+      metadata: {
+        invoked_by: asker.display_name,
+        provider: agent.provider,
+        code_request_id: request?.id ?? null,
+        repo,
+      },
+    })
+    .eq("id", messageId);
 }
 
 async function fail(

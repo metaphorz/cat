@@ -1,0 +1,179 @@
+# cat — agent code request
+#
+# This file does not belong to the cat repository. It is a template to be
+# installed in each repository a cat channel is allowed to write to, at
+# .github/workflows/cat-agent.yml
+#
+# It runs only in response to a repository_dispatch event that the cat edge
+# function sends, which it sends only when a permitted person explicitly asked
+# a permitted channel's agent to open a pull request.
+#
+# Required repository secrets:
+#   ANTHROPIC_API_KEY     for the coding agent
+#   CAT_CALLBACK_URL      https://<ref>.supabase.co/functions/v1/agent-callback
+#   CAT_CALLBACK_SECRET   shared with that endpoint
+#
+# Two properties worth preserving if this is edited:
+#   * it never pushes to the default branch, only to cat/* branches
+#   * it always reports back, including when it fails, so a request cannot
+#     disappear silently from the conversation
+
+name: cat agent code request
+
+on:
+  repository_dispatch:
+    types: [cat-code-request]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: cat-agent-${{ github.event.client_payload.request_id }}
+  cancel-in-progress: false
+
+jobs:
+  change:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      REQUEST_ID: ${{ github.event.client_payload.request_id }}
+      TITLE: ${{ github.event.client_payload.title }}
+      BASE: ${{ github.event.client_payload.base }}
+      REQUESTED_BY: ${{ github.event.client_payload.requested_by }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.base }}
+          fetch-depth: 0
+
+      - name: Tell the channel we have started
+        continue-on-error: true
+        run: |
+          curl -sS -X POST "$CAT_CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -H "x-cat-secret: $CAT_CALLBACK_SECRET" \
+            -d "{\"request_id\": $REQUEST_ID, \"status\": \"running\"}"
+        env:
+          CAT_CALLBACK_URL: ${{ secrets.CAT_CALLBACK_URL }}
+          CAT_CALLBACK_SECRET: ${{ secrets.CAT_CALLBACK_SECRET }}
+
+      # The brief says what to do; the transcript says why. The conversation is
+      # where the constraints were actually agreed, and restating it in one
+      # sentence loses exactly the part that matters.
+      - name: Write the brief
+        run: |
+          mkdir -p /tmp/cat
+          cat > /tmp/cat/BRIEF.md <<'BRIEF_EOF'
+          ${{ github.event.client_payload.brief }}
+          BRIEF_EOF
+          cat > /tmp/cat/CONVERSATION.md <<'CONV_EOF'
+          ${{ github.event.client_payload.transcript }}
+          CONV_EOF
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the coding agent
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Make the change
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -o pipefail
+          PROMPT=$(cat <<'PROMPT_EOF'
+          You are making a change to this repository on behalf of a research
+          group, who discussed it and then asked for it.
+
+          The task is in /tmp/cat/BRIEF.md. The conversation that led to it is
+          in /tmp/cat/CONVERSATION.md -- read both. The conversation usually
+          carries constraints and reasoning that the brief does not repeat.
+
+          Make the change. Keep it focused: do only what was asked, match the
+          surrounding code's conventions, and do not reformat or tidy code you
+          were not asked to touch. If the repository has tests covering what you
+          changed, run them.
+
+          If the task turns out to be underspecified or a bad idea as stated, do
+          not guess -- make the smallest sensible change you are confident in
+          and write what you could not resolve into CHANGE_NOTES.md at the
+          repository root.
+
+          Do not commit; the workflow does that.
+          PROMPT_EOF
+          )
+          claude -p "$PROMPT" --dangerously-skip-permissions 2>&1 | tee /tmp/cat/agent.log
+
+      - name: Commit to a branch and open the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          BRANCH="cat/request-${REQUEST_ID}"
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "no-changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name  "cat agent"
+          git config user.email "noreply@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "$TITLE" -m "Requested by ${REQUESTED_BY} via cat. Agent-authored; review before merging."
+          git push origin "$BRANCH"
+
+          BODY=$(printf '%s\n\n---\n\n%s\n\n---\n\nRequested by **%s** in cat. Written by an agent from the conversation; nothing here has been reviewed by a person yet.' \
+            "$(cat /tmp/cat/BRIEF.md)" "$(head -c 4000 /tmp/cat/agent.log)" "$REQUESTED_BY")
+
+          URL=$(gh pr create --base "$BASE" --head "$BRANCH" \
+                 --title "$TITLE" --body "$BODY")
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      # Always reports, success or failure: a request that vanishes from the
+      # conversation is worse than one that fails loudly.
+      - name: Report back
+        if: always()
+        env:
+          CAT_CALLBACK_URL: ${{ secrets.CAT_CALLBACK_URL }}
+          CAT_CALLBACK_SECRET: ${{ secrets.CAT_CALLBACK_SECRET }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "${{ steps.pr.outputs.no-changes }}" = "true" ]; then
+            STATUS=failed
+            DETAIL="The agent ran but changed nothing. See $RUN_URL"
+          elif [ -n "${{ steps.pr.outputs.url }}" ]; then
+            STATUS=opened
+            DETAIL=""
+          else
+            STATUS=failed
+            DETAIL="The run did not complete. See $RUN_URL"
+          fi
+
+          python3 - <<PY
+          import json, os, urllib.request
+          payload = {
+              "request_id": int(os.environ["REQUEST_ID"]),
+              "status": "$STATUS",
+              "pr_url": "${{ steps.pr.outputs.url }}" or None,
+              "branch": "${{ steps.pr.outputs.branch }}" or None,
+              "detail": """$DETAIL""" or None,
+          }
+          req = urllib.request.Request(
+              os.environ["CAT_CALLBACK_URL"],
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Content-Type": "application/json",
+                  "x-cat-secret": os.environ["CAT_CALLBACK_SECRET"],
+              },
+              method="POST",
+          )
+          with urllib.request.urlopen(req, timeout=30) as r:
+              print(r.status, r.read().decode())
+          PY
