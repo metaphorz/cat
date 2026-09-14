@@ -484,38 +484,206 @@ function formatTime(iso) {
       });
 }
 
-// A deliberately small subset of Markdown: fenced code, inline code, bold,
-// italic, links and @mentions. Everything is escaped before any of it runs,
-// so nothing a message contains can become live markup. Code blocks are
-// lifted out first and restored last, so their contents are never touched
-// by the inline rules.
-function renderMarkdown(src) {
-  const blocks = [];
-  let text = escapeHtml(src);
+// Markdown, rendered to the extent this conversation needs: fenced code,
+// tables, headings, lists, blockquotes, LaTeX maths, and the usual inline
+// marks. Written by hand rather than pulled from a library because the input
+// is untrusted -- everything is escaped before any structure is applied, so
+// nothing a message contains can become live markup.
+//
+// Code and maths are lifted out first and restored last, so the inline rules
+// never touch their contents. The placeholders are private-use code points,
+// which cannot occur in anything a person would type.
+const HOLD_OPEN = "";
+const HOLD_CLOSE = "";
 
+function renderMarkdown(src) {
+  const held = [];
+  const hold = (html) => {
+    held.push(html);
+    return `${HOLD_OPEN}${held.length - 1}${HOLD_CLOSE}`;
+  };
+
+  let text = String(src);
+
+  // 1. Fenced code.
   text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    const cls = lang ? ` class="language-${lang}"` : "";
-    blocks.push(`<pre><code${cls}>${code.replace(/\n$/, "")}</code></pre>`);
-    return `\uE000${blocks.length - 1}\uE001`;
+    const cls = lang ? ` class="language-${escapeHtml(lang)}"` : "";
+    return hold(
+      `<pre><code${cls}>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`,
+    );
   });
 
-  text = text
+  // 2. Maths, display before inline so $$...$$ is not eaten by $...$.
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => hold(renderMath(tex, true)));
+  text = text.replace(/(^|[^\\$])\$([^$\n]+?)\$/g, (_, before, tex) =>
+    before + hold(renderMath(tex, false)));
+
+  // 3. Everything that survives is prose, and is escaped before any structure
+  //    is applied to it.
+  text = escapeHtml(text);
+
+  // 4. Block structure.
+  const blocks = text.split(/\n{2,}/).map(renderBlock).join("");
+
+  // 5. Put the code and maths back.
+  return blocks.replace(
+    new RegExp(HOLD_OPEN + "(\\d+)" + HOLD_CLOSE, "g"),
+    (_, i) => held[i],
+  );
+}
+
+function renderMath(tex, display) {
+  // KaTeX is loaded from a CDN; if it did not arrive, show the source rather
+  // than a blank space, so the reader can still follow the notation.
+  if (typeof katex === "undefined") {
+    return `<code class="math-raw">${escapeHtml(tex)}</code>`;
+  }
+  try {
+    return katex.renderToString(tex, { displayMode: display, throwOnError: false });
+  } catch {
+    return `<code class="math-raw">${escapeHtml(tex)}</code>`;
+  }
+}
+
+function renderBlock(block) {
+  const lines = block.split("\n").filter((l) => l.trim() !== "");
+  if (!lines.length) return "";
+
+  // A held code block or display equation standing alone: emit it bare rather
+  // than wrapping a <pre> inside a <p>.
+  if (lines.length === 1 && /^\d+$/.test(lines[0].trim())) {
+    return lines[0].trim();
+  }
+
+  if (/^\s*(---+|\*\*\*+|___+)\s*$/.test(block)) return "<hr>";
+
+  const heading = lines[0].match(/^(#{1,4})\s+(.*)$/);
+  if (heading && lines.length === 1) {
+    const level = Math.min(heading[1].length + 2, 6); // h1 is the page, not a message
+    return `<h${level}>${inline(heading[2])}</h${level}>`;
+  }
+
+  // Escaping has already run by this point, so a quote marker is &gt;, not >.
+  if (lines.every((l) => /^\s*&gt;/.test(l))) {
+    const body = lines.map((l) => l.replace(/^\s*&gt;\s?/, "")).join(" ");
+    return `<blockquote>${inline(body)}</blockquote>`;
+  }
+
+  if (isTable(lines)) return renderTable(lines);
+
+  if (lines.every((l) => /^\s*[-*+]\s+/.test(l))) {
+    const items = lines
+      .map((l) => `<li>${inline(l.replace(/^\s*[-*+]\s+/, ""))}</li>`)
+      .join("");
+    return `<ul>${items}</ul>`;
+  }
+
+  if (lines.every((l) => /^\s*\d+[.)]\s+/.test(l))) {
+    const items = lines
+      .map((l) => `<li>${inline(l.replace(/^\s*\d+[.)]\s+/, ""))}</li>`)
+      .join("");
+    return `<ol>${items}</ol>`;
+  }
+
+  // Mixed content: headings and list items can share a paragraph when an agent
+  // writes them without blank lines between, so handle them line by line.
+  if (lines.some((l) => /^(#{1,4}\s|\s*[-*+]\s|\s*\d+[.)]\s)/.test(l))) {
+    return renderMixed(lines);
+  }
+
+  return `<p>${lines.map(inline).join("<br>")}</p>`;
+}
+
+// Agents frequently write a heading, then bullets, with no blank line between.
+// Treating that as one paragraph loses the structure entirely.
+function renderMixed(lines) {
+  const out = [];
+  let list = null;
+
+  const closeList = () => {
+    if (list) {
+      out.push(`<${list.tag}>${list.items.join("")}</${list.tag}>`);
+      list = null;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+    const number = line.match(/^\s*\d+[.)]\s+(.*)$/);
+
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length + 2, 6);
+      out.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+    } else if (bullet) {
+      if (list?.tag !== "ul") { closeList(); list = { tag: "ul", items: [] }; }
+      list.items.push(`<li>${inline(bullet[1])}</li>`);
+    } else if (number) {
+      if (list?.tag !== "ol") { closeList(); list = { tag: "ol", items: [] }; }
+      list.items.push(`<li>${inline(number[1])}</li>`);
+    } else if (list) {
+      // A continuation line belongs to the item above it.
+      list.items[list.items.length - 1] =
+        list.items[list.items.length - 1].replace("</li>", " " + inline(line) + "</li>");
+    } else {
+      out.push(`<p>${inline(line)}</p>`);
+    }
+  }
+
+  closeList();
+  return out.join("");
+}
+
+function isTable(lines) {
+  return (
+    lines.length >= 2 &&
+    lines[0].includes("|") &&
+    /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[1]) &&
+    lines[1].includes("-")
+  );
+}
+
+function renderTable(lines) {
+  const cells = (row) =>
+    row.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+
+  // The separator row may carry alignment, as :--- or ---: or :---:
+  const aligns = cells(lines[1]).map((spec) => {
+    const left = spec.startsWith(":");
+    const right = spec.endsWith(":");
+    if (left && right) return " style=\"text-align:center\"";
+    if (right) return " style=\"text-align:right\"";
+    return "";
+  });
+
+  const head = cells(lines[0])
+    .map((c, i) => `<th${aligns[i] ?? ""}>${inline(c)}</th>`)
+    .join("");
+
+  const body = lines
+    .slice(2)
+    .map((row) =>
+      "<tr>" +
+      cells(row).map((c, i) => `<td${aligns[i] ?? ""}>${inline(c)}</td>`).join("") +
+      "</tr>")
+    .join("");
+
+  return `<div class="table-wrap"><table><thead><tr>${head}</tr></thead>` +
+    `<tbody>${body}</tbody></table></div>`;
+}
+
+// Inline marks. Operates on already-escaped text.
+function inline(s) {
+  return s
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>")
-    .replace(/\bhttps?:\/\/[^\s<]+[^\s<.,:;"')\]]/g,
-      (url) => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`)
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,:;"')\]])/g,
+      '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
     .replace(/(^|\s)(@[a-z0-9_-]+)/gi, '$1<span class="mention">$2</span>');
-
-  text = text
-    .split(/\n{2,}/)
-    .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
-    .join("");
-
-  // Unwrap any paragraph that holds nothing but a code-block placeholder.
-  return text
-    .replace(/<p>\uE000(\d+)\uE001<\/p>/g, (_, i) => blocks[i])
-    .replace(/\uE000(\d+)\uE001/g, (_, i) => blocks[i]);
 }
 
 function escapeHtml(s) {
