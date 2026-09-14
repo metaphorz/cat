@@ -100,3 +100,7 @@ trust decision and deserves to be made on purpose rather than inherited.
 Messages are not editable and there are no threads, reactions, or file uploads.
 Recreating Slack is not the point; having somewhere to think about a codebase
 together is.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
