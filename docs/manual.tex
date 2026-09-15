@@ -59,7 +59,9 @@ listed in the sidebar, the last grouped by discipline. Note that the agent is
 answering \emph{for a particular reader}---``this is the part closest to your
 discipline'', ``that's the statistician's area''---because it was told who asked
 and what they work on. The line beneath the reply records which model answered
-and what it cost; the composer names the agents available to summon.}
+and what it cost; the composer names the agents available to summon. Shown in
+the dark theme, and captured before \texttt{\#general} and the theme control
+were added; the layout is otherwise current.}
 \label{fig:interface}
 \end{figure}
 
@@ -389,12 +391,22 @@ disappears silently from the conversation is worse than one that fails loudly.
 
 Nothing merges itself.
 
-\subsection{Interface size}
+\subsection{Appearance}
 
-The sidebar carries a size control offering five steps. It scales the entire
-interface---type, avatars, sidebar width---rather than type alone, because a
-large font inside a fixed-width column reads worse than no change at all. The
-choice is remembered per browser.
+Two controls, both in the sidebar, both remembered per browser.
+
+\textbf{Light or dark}, from the button at the top beside the mark. Light is
+the default and is Anthropic's tan, \texttt{\#f0eee6}, with the clay accent
+that goes with it; dark is the palette the interface was originally drawn in.
+The button shows the theme you would be switching \emph{to} rather than the one
+you are in. Two details are deliberate: the saved choice is applied before the
+page paints, so choosing dark does not mean a flash of white on every load; and
+the operating system's own light/dark setting is not consulted, so the same
+person does not find two different-looking workspaces on two machines.
+
+\textbf{Size}, offering five steps. It scales the entire interface---type,
+avatars, sidebar width---rather than type alone, because a large font inside a
+fixed-width column reads worse than no change at all.
 
 \section{Administration}
 
