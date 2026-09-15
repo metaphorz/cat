@@ -1,4 +1,41 @@
+/* Light is the default, in Anthropic's tan: #f0eee6 with the clay accent,
+   both taken from anthropic.com rather than approximated by eye. The clay is
+   deepened from its brand #d97757 for anything carrying text -- at brand
+   strength it sits at about 2.9:1 against the tan, which is under the readable
+   threshold for links and buttons. Dark follows below and is the palette this
+   interface was originally drawn in.
+
+   Every colour in this file resolves through one of these names, so a theme is
+   this block and its twin -- nothing downstream knows which one is live. */
 :root {
+  --bg: #f0eee6;
+  --bg-side: #e8e6dc;
+  --bg-raise: #dedbcd;
+  --line: #d6d3c4;
+  --text: #141413;
+  --text-dim: #55544e;
+  --text-faint: #87867f;
+  --accent: #b4502b;
+  --accent-soft: #b4502b1f;
+  --on-accent: #fdf6f2;
+  --agent: #6b4ea3;
+  --avatar-agent: #e3d8f2;
+  --danger: #a33228;
+  --ok: #3f7238;
+  --warn-bg: #f6ecd2;
+  --warn-line: #c39a3e;
+  --warn-text: #6a5018;
+  --radius: 8px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* The one knob that scales the whole interface. Everything below is sized
+     in rem, so changing this moves type, avatars and the sidebar together
+     rather than leaving a large font rattling around in a fixed-width
+     column. Set from the picker in the sidebar and remembered per browser. */
+  --ui-font: 18px;
+}
+
+:root[data-theme="dark"] {
   --bg: #14161a;
   --bg-side: #1b1e24;
   --bg-raise: #21252c;
@@ -8,17 +45,14 @@
   --text-faint: #6b7483;
   --accent: #7aa2f7;
   --accent-soft: #7aa2f71a;
+  --on-accent: #10131a;
   --agent: #c8a2ff;
+  --avatar-agent: #2a2140;
   --danger: #f7768e;
   --ok: #9ece6a;
-  --radius: 8px;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-
-  /* The one knob that scales the whole interface. Everything below is sized
-     in rem, so changing this moves type, avatars and the sidebar together
-     rather than leaving a large font rattling around in a fixed-width
-     column. Set from the picker in the sidebar and remembered per browser. */
-  --ui-font: 18px;
+  --warn-bg: #3a2f1a;
+  --warn-line: #d7a55a;
+  --warn-text: #e2c894;
 }
 
 * { box-sizing: border-box; }
@@ -79,7 +113,7 @@ body {
   margin-top: 14px;
   padding: 10px 12px;
   background: var(--accent);
-  color: #10131a;
+  color: var(--on-accent);
   border: 0;
   border-radius: var(--radius);
   font: inherit;
@@ -136,15 +170,50 @@ body {
   text-anchor: middle;
 }
 
+/* Pushed to the far edge of the brand row by the margin rather than by a
+   spacer element. */
+.theme-toggle {
+  margin-left: auto;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.78rem;
+  height: 1.78rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.theme-toggle:hover { background: var(--bg-raise); color: var(--text); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.theme-toggle svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+/* Show the theme you would be switching to, not the one you are in. */
+.theme-toggle .icon-sun  { display: none; }
+.theme-toggle .icon-moon { display: block; }
+:root[data-theme="dark"] .theme-toggle .icon-sun  { display: block; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
 /* Standing reminder, directly under the mark so it is read before anything
    is typed rather than buried in a policy page nobody opens. */
 .notice {
   margin: 0 16px 14px;
   padding: 7px 9px;
-  background: #3a2f1a;
-  border-left: 2px solid #d7a55a;
+  background: var(--warn-bg);
+  border-left: 2px solid var(--warn-line);
   border-radius: 4px;
-  color: #e2c894;
+  color: var(--warn-text);
   font-size: 0.733rem;
   line-height: 1.4;
 }
@@ -293,7 +362,7 @@ body {
   font-size: 0.867rem;
   font-weight: 700;
 }
-.msg-row.by-agent .avatar { background: #2a2140; color: var(--agent); }
+.msg-row.by-agent .avatar { background: var(--avatar-agent); color: var(--agent); }
 .msg-row.continued .avatar { visibility: hidden; height: 0; }
 
 .msg-body { min-width: 0; flex: 1; }
@@ -391,7 +460,7 @@ body {
 .composer button {
   padding: 5px 15px;
   background: var(--accent);
-  color: #10131a;
+  color: var(--on-accent);
   border: 0;
   border-radius: 6px;
   font: inherit;

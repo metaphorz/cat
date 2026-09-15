@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cat — codebase chat</title>
 <link rel="stylesheet" href="style.css">
+<!-- Inline and before the first paint on purpose. Loading this with the rest
+     of the app would paint the light default first and then correct itself,
+     which is a flash of white in the face of anyone who chose dark. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem("cat:theme");
+      if (saved === "dark") document.documentElement.dataset.theme = "dark";
+    } catch (e) {
+      /* Private browsing can refuse localStorage; the default stands. */
+    }
+  })();
+</script>
 <!-- KaTeX renders the mathematical notation agents use. Loaded before app.js
      so renderMath finds it; if it fails to arrive, maths falls back to its
      source text rather than vanishing. -->
@@ -60,6 +73,25 @@
         <text class="brand-bits" x="27" y="47">1</text>
       </svg>
       <span class="brand-name">cat</span>
+
+      <!-- Both icons are always in the DOM; CSS shows whichever one offers the
+           theme you are not currently in, so the button says what it will do
+           rather than what is already true. -->
+      <button id="theme" class="theme-toggle" type="button"
+              aria-label="Switch between light and dark" title="Light / dark">
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/>
+          <g stroke-linecap="round">
+            <path d="M12 2.6v2.6"/><path d="M12 18.8v2.6"/>
+            <path d="M2.6 12h2.6"/><path d="M18.8 12h2.6"/>
+            <path d="M5.3 5.3 7.2 7.2"/><path d="M16.8 16.8l1.9 1.9"/>
+            <path d="M18.7 5.3 16.8 7.2"/><path d="M7.2 16.8l-1.9 1.9"/>
+          </g>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4 8.2 8.2 0 1 0 20 14.2Z"/>
+        </svg>
+      </button>
     </div>
 
     <p class="notice">Do not include any private or proprietary information.</p>

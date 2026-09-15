@@ -11,7 +11,7 @@ const el = {
   channelName: $("channel-name"), channelPurpose: $("channel-purpose"),
   channelRepo: $("channel-repo"), messages: $("messages"), composer: $("composer"),
   input: $("input"), send: $("send"), hint: $("hint"),
-  fontSize: $("font-size"),
+  fontSize: $("font-size"), theme: $("theme"),
 };
 
 // ---------------------------------------------------------------- text size
@@ -31,6 +31,33 @@ el.fontSize.value = localStorage.getItem(FONT_KEY) ?? DEFAULT_FONT;
 el.fontSize.addEventListener("change", () => {
   localStorage.setItem(FONT_KEY, el.fontSize.value);
   applyFontSize(el.fontSize.value);
+});
+
+// -------------------------------------------------------------------- theme
+
+// Light is the default and the theme is only ever what someone chose here --
+// the system's own light/dark preference is deliberately not consulted. A
+// workspace that looked different on two machines belonging to the same person
+// would be a puzzle, not a feature.
+//
+// The document may already carry data-theme: the inline script in the head
+// applies the saved choice before the first paint, and this only has to keep
+// the toggle in step with it from here on.
+const THEME_KEY = "cat:theme";
+
+function applyTheme(name) {
+  if (name === "dark") document.documentElement.dataset.theme = "dark";
+  else delete document.documentElement.dataset.theme;
+}
+
+el.theme.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch (e) {
+    // Unwritable storage costs the preference on reload, not the click.
+  }
 });
 
 const state = {
