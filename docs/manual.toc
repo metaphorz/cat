@@ -1,22 +1,22 @@
 \contentsline {section}{\numberline {1}Introduction}{3}{section.1}%
-\contentsline {subsection}{\numberline {1.1}Design goals}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.1}Design goals}{4}{subsection.1.1}%
 \contentsline {subsection}{\numberline {1.2}What CAT is not}{4}{subsection.1.2}%
 \contentsline {section}{\numberline {2}Architecture}{4}{section.2}%
-\contentsline {subsection}{\numberline {2.1}Why the browser can hold the keys it does}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.1}Why the browser can hold the keys it does}{5}{subsection.2.1}%
 \contentsline {subsection}{\numberline {2.2}Why the agent answers asynchronously}{5}{subsection.2.2}%
 \contentsline {section}{\numberline {3}The permission model}{5}{section.3}%
 \contentsline {subsection}{\numberline {3.1}A subtlety worth stating}{6}{subsection.3.1}%
 \contentsline {section}{\numberline {4}Data model}{6}{section.4}%
-\contentsline {subsection}{\numberline {4.1}Specialties and code areas}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.1}Specialties and code areas}{7}{subsection.4.1}%
 \contentsline {subsection}{\numberline {4.2}Code requests}{7}{subsection.4.2}%
 \contentsline {subsection}{\numberline {4.3}Messages}{7}{subsection.4.3}%
 \contentsline {section}{\numberline {5}Using CAT}{7}{section.5}%
 \contentsline {subsection}{\numberline {5.1}Signing in}{7}{subsection.5.1}%
 \contentsline {subsection}{\numberline {5.2}Channels}{7}{subsection.5.2}%
-\contentsline {subsection}{\numberline {5.3}Talking to an agent}{7}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.3}Talking to an agent}{8}{subsection.5.3}%
 \contentsline {subsection}{\numberline {5.4}Formatting, tables and mathematics}{8}{subsection.5.4}%
 \contentsline {subsection}{\numberline {5.5}Asking for a change}{8}{subsection.5.5}%
-\contentsline {subsection}{\numberline {5.6}Appearance}{8}{subsection.5.6}%
+\contentsline {subsection}{\numberline {5.6}Appearance}{9}{subsection.5.6}%
 \contentsline {section}{\numberline {6}Administration}{9}{section.6}%
 \contentsline {subsection}{\numberline {6.1}Adding a person}{9}{subsection.6.1}%
 \contentsline {subsection}{\numberline {6.2}Seeing who is in the workspace}{9}{subsection.6.2}%
@@ -25,7 +25,7 @@
 \contentsline {section}{\numberline {7}Deployment}{10}{section.7}%
 \contentsline {subsection}{\numberline {7.1}Supabase}{10}{subsection.7.1}%
 \contentsline {subsection}{\numberline {7.2}The Edge Function}{10}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{10}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{11}{subsection.7.3}%
 \contentsline {subsection}{\numberline {7.4}GitHub Pages}{11}{subsection.7.4}%
 \contentsline {section}{\numberline {8}Testing}{11}{section.8}%
-\contentsline {section}{\numberline {9}Limitations and future work}{11}{section.9}%
+\contentsline {section}{\numberline {9}Limitations and future work}{12}{section.9}%
