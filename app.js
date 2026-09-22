@@ -71,7 +71,6 @@ const state = {
   channel: null,
   messages: [],
   notes: [],         // command replies: local to this browser, never stored
-  pendingClear: null, // a /clear transcript taken but not yet acted on
   tray: [],          // images picked but not yet sent
   shots: new Map(),  // storage path -> signed URL, refreshed on load
   paletteAt: -1,     // highlighted row in the command palette, -1 when closed
@@ -185,7 +184,7 @@ function teardown() {
   Object.assign(state, {
     me: null, channels: [], agents: [], people: new Map(), online: new Set(),
     specialties: new Map(), channel: null, messages: [], notes: [],
-    pendingClear: null, tray: [], shots: new Map(),
+    tray: [], shots: new Map(),
     paletteAt: -1, feed: null, presence: null, entering: null,
   });
 }
@@ -334,7 +333,6 @@ async function openChannel(channel) {
   // A command's answer was about the channel it was run in, so it does not
   // follow you to the next one.
   state.notes = [];
-  state.pendingClear = null;
   window.location.hash = channel.slug;
 
   for (const b of el.channels.querySelectorAll("button")) {
@@ -1238,7 +1236,7 @@ const COMMANDS = [
   { name: "model", args: "[agent] [model]", blurb: "list or switch the default model" },
   { name: "retry", args: "[model]", blurb: "rerun the last ask on another model" },
   { name: "answer", args: "on|off [agent]", blurb: "answer this channel without @mentions" },
-  { name: "clear", args: "", blurb: "save the transcript, then empty the channel" },
+  { name: "clear", args: "", blurb: "save the transcript and empty the channel" },
   { name: "verbose", args: "on|off", blurb: "how long agent replies should be here" },
   { name: "status", args: "", blurb: "messages, tokens and channels" },
   { name: "who", args: "", blurb: "members, and who has yet to sign in" },
@@ -1330,6 +1328,72 @@ el.palette.addEventListener("mousedown", (e) => {
   if (item) paletteChoose(item.dataset.name);
 });
 
+
+// /clear is one command that does two things, because being asked to confirm
+// something you already asked for is a poor guard. The real guard is the
+// order: the transcript is fetched and written to disk first, and the delete
+// only runs if that succeeded. A browser that refuses the download leaves the
+// channel exactly as it was.
+async function clearChannel() {
+  const channelId = state.channel.id;
+
+  const { data, error } = await supabase.functions.invoke("admin-command", {
+    body: { command: "clear", args: [], channel_id: channelId },
+  });
+
+  if (error) {
+    addNote("clear", await detailOf(error), true);
+    return;
+  }
+  if (!data?.download) {
+    addNote("clear", data?.text ?? "Nothing to clear.");
+    return;
+  }
+
+  try {
+    saveFile(data.download.name, data.download.body);
+  } catch (e) {
+    addNote(
+      "clear",
+      `Could not save the transcript (${e.message}), so **nothing was deleted**. ` +
+        "The channel is untouched.",
+      true,
+    );
+    return;
+  }
+
+  const { data: done, error: failed } = await supabase.functions.invoke("admin-command", {
+    body: {
+      command: "clear",
+      args: ["confirm", String(data.clear_up_to)],
+      channel_id: channelId,
+    },
+  });
+
+  if (failed) {
+    addNote(
+      "clear",
+      `**${data.download.name}** was saved, but the channel could not be emptied: ` +
+        (await detailOf(failed)),
+      true,
+    );
+    return;
+  }
+
+  state.notes = [];
+  await loadMessages();
+  addNote("clear", `Saved **${data.download.name}** to your downloads.\n\n${done?.text ?? ""}`);
+}
+
+// The function's own refusals arrive as an HTTP error carrying a JSON body.
+async function detailOf(error) {
+  try {
+    const parsed = await error.context?.json?.();
+    if (parsed?.error) return parsed.error;
+  } catch { /* fall through to the generic message */ }
+  return error.message;
+}
+
 async function runCommand(raw) {
   const [word, ...args] = raw.slice(1).split(/\s+/).filter(Boolean);
   const command = (word ?? "").toLowerCase();
@@ -1341,19 +1405,9 @@ async function runCommand(raw) {
 
   if (command === "retry") return await retryCommand(args);
 
-  // /clear confirm carries the id the transcript ended at, so it can only
-  // delete what you were actually shown -- and cannot run at all unless you
-  // ran /clear first in this session.
-  let sendArgs = args;
-  if (command === "clear" && (args[0] ?? "").toLowerCase() === "confirm") {
-    const pending = state.pendingClear;
-    if (!pending || pending.channelId !== state.channel.id) {
-      addNote("clear", "Run `/clear` first. It saves the transcript; nothing is deleted until you have it.", true);
-      return;
-    }
-    sendArgs = ["confirm", String(pending.upTo)];
-  }
+  if (command === "clear") return await clearChannel();
 
+  const sendArgs = args;
   const { data, error } = await supabase.functions.invoke("admin-command", {
     body: { command, args: sendArgs, channel_id: state.channel.id },
   });
@@ -1366,21 +1420,6 @@ async function runCommand(raw) {
     } catch { /* fall back to the generic message */ }
     addNote(command, detail, true);
     return;
-  }
-
-  // A transcript is handed to the browser rather than kept anywhere: it lands
-  // in your downloads and nothing of it is stored server-side.
-  if (data?.download) {
-    saveFile(data.download.name, data.download.body);
-    state.pendingClear = { channelId: state.channel.id, upTo: data.clear_up_to };
-  }
-
-  // Order matters: drop the old notes before adding this one, or the
-  // confirmation that the channel was cleared is cleared along with it.
-  if (command === "clear" && sendArgs[0] === "confirm") {
-    state.pendingClear = null;
-    state.notes = [];
-    await loadMessages();
   }
 
   addNote(command, data?.text ?? "Done.");

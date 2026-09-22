@@ -539,8 +539,8 @@ leaving the stored default alone.\\
 channel. Off by default. See \S\ref{sec:answer}.\\
 \texttt{/verbose} & \texttt{off} asks the agents for a few sentences rather
 than an essay, in this channel. On by default.\\
-\texttt{/clear} & Saves the channel's transcript to your downloads, then
-empties the channel on a second confirming command. See \S\ref{sec:clear}.\\
+\texttt{/clear} & Saves the channel's transcript to your downloads and then
+empties the channel. See \S\ref{sec:clear}.\\
 \texttt{/status} & Message, token and cache counts by channel, person and
 model.\\
 \texttt{/who} & Everyone on the allowlist, and which of them have yet to sign
@@ -626,12 +626,18 @@ repository binding and its specialty mapping all survive; only the messages
 go, and the channel can be talked in again a second later. That is a different
 act from archiving, which removes the channel itself.
 
-It always takes two commands. The first saves the transcript to your browser's
-downloads as a Markdown file and deletes nothing at all. The second,
-\texttt{/clear confirm}, does the deletion. The reason for the pause is that
-deleted messages cannot be recovered from Supabase---row level security lets a
-member delete only their own messages, so this runs with the service role, and
-what it removes is gone.
+It is one command that does two things in order, and the order is the
+safeguard. The transcript is fetched and written to your browser's downloads
+first; the deletion runs only if that succeeded. A browser that refuses the
+download leaves the channel exactly as it was, and says so. This matters
+because deleted messages cannot be recovered from Supabase---row level
+security lets a member delete only their own messages, so this runs with the
+service role, and what it removes is gone.
+
+An earlier version asked for a second confirming command. Being asked to
+confirm something you have just asked for is a poor guard: it trains the
+answer rather than prompting a decision. Making the file exist before anything
+is destroyed is a real one.
 
 The transcript is handed to the browser rather than stored anywhere. Nothing
 is kept server-side and nothing is committed to GitHub, which matters because
