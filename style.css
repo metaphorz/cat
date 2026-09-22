@@ -574,6 +574,13 @@ body {
   cursor: pointer;
 }
 
+/* KaTeX renders every formula twice: once visually, once as MathML for screen
+   readers, hidden by clipping rather than by user-select -- so an ordinary copy
+   takes both and yields doubled text. The copy handler in app.js rebuilds the
+   Markdown properly, but it only fires for selections that begin inside a
+   message; this keeps the fallback sane for every other selection. */
+.katex-mathml { user-select: none; }
+
 /* Dragging text out of a message needs the message text to be selectable and
    draggable, which is the default -- but a stray user-select rule anywhere
    above it would silently kill the gesture, so it is stated here. */

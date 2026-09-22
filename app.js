@@ -1130,7 +1130,94 @@ el.composer.addEventListener("drop", (e) => {
   insertAtCaret(text.replace(/\s+$/, ""));
 });
 
+
+// --------------------------------------------------------------- copying out
+
+// Copying from a rendered message and pasting it back should produce what was
+// copied. Two things stop that by default. KaTeX renders every formula twice
+// -- once visually and once as MathML for screen readers -- and hides the
+// second with clipping rather than with user-select, so a plain copy picks up
+// both and yields doubled nonsense. And the markers are gone: bold is a
+// <strong>, code is a <code>, so the paste arrives as flat prose.
+//
+// So the selection is walked and turned back into Markdown. The vocabulary is
+// small because renderMarkdown's is small: whatever it can render, this has to
+// be able to reproduce.
+function texOf(node) {
+  const ann = node.querySelector?.('annotation[encoding="application/x-tex"]');
+  return ann ? ann.textContent : null;
+}
+
+function wrap(text, mark) {
+  const m = text.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  return m && m[2] ? m[1] + mark + m[2] + mark + m[3] : text;
+}
+
+function toMarkdown(node) {
+  if (node.nodeType === 3) return node.data;
+  if (node.nodeType !== 1) return "";
+
+  const tag = node.tagName?.toLowerCase();
+  const cls = node.classList;
+
+  // A formula: take the TeX the model actually wrote, not the glyphs.
+  if (cls?.contains("katex") || cls?.contains("katex-display")) {
+    const tex = texOf(node);
+    if (tex) return cls.contains("katex-display") ? `$$${tex}$$` : `$${tex}$`;
+  }
+  // Reached only when a selection starts or ends inside a formula, so the
+  // wrapper was not cloned. The visual half is aria-hidden duplicate text.
+  if (cls?.contains("katex-mathml")) return "";
+
+  const kids = () => [...node.childNodes].map(toMarkdown).join("");
+
+  switch (tag) {
+    case "br": return "\n";
+    // Markers have to hug their text: "**bold **" is not bold in CommonMark,
+    // and bold wrapping a code span produces exactly that if the whitespace
+    // is left where it fell.
+    case "strong": case "b": return wrap(kids(), "**");
+    case "em": case "i": return wrap(kids(), "*");
+    case "code": return node.closest?.("pre") ? kids() : `\`${kids()}\``;
+    case "pre": return "```\n" + node.textContent.replace(/\n$/, "") + "\n```\n\n";
+    case "a": {
+      const href = node.getAttribute?.("href");
+      const text = kids();
+      return href && href !== text ? `[${text}](${href})` : text;
+    }
+    case "li": return `- ${kids()}\n`;
+    case "ul": case "ol": return kids() + "\n";
+    case "blockquote":
+      return kids().trim().split("\n").map((l) => `> ${l}`).join("\n") + "\n\n";
+    case "h1": case "h2": case "h3": case "h4": case "h5": case "h6":
+      return `${"#".repeat(Math.max(1, Number(tag[1]) - 2))} ${kids()}\n\n`;
+    case "p": case "div": return kids() + "\n\n";
+    case "tr": return [...node.children].map((c) => toMarkdown(c).trim()).join(" | ") + "\n";
+    case "td": case "th": return kids();
+    default: return kids();
+  }
+}
+
+document.addEventListener("copy", (e) => {
+  const sel = document.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+
+  // Only rewrite copies taken from a rendered message. A selection anywhere
+  // else -- the sidebar, the composer, a command note -- is left alone.
+  const from = (sel.anchorNode?.nodeType === 1 ? sel.anchorNode : sel.anchorNode?.parentElement);
+  if (!from?.closest?.(".text")) return;
+
+  const md = toMarkdown(sel.getRangeAt(0).cloneContents())
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (!md) return;
+  e.clipboardData.setData("text/plain", md);
+  e.preventDefault();
+});
+
 // ------------------------------------------------------------ slash commands
+
 
 
 // Offered only to admins, and only as a convenience: admin-command refuses

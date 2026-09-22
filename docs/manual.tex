@@ -360,6 +360,17 @@ digit nor a space. Two prices on one line---\texttt{\$5.00 in, \$25.00
 out}---would otherwise pair their delimiters and be typeset as an equation,
 which is exactly what happened the first time a command reported a cost.
 
+Copying out of a message gives back Markdown, not the rendered text. Two
+things would otherwise spoil it. KaTeX draws every formula twice---once
+visually and once as MathML for screen readers---and hides the second by
+clipping it rather than by making it unselectable, so an ordinary copy takes
+both and produces doubled nonsense. And the markers are gone from the rendered
+form: bold is a \texttt{<strong>}, code is a \texttt{<code>}, so a paste would
+arrive as flat prose. The copy is therefore intercepted and the selection
+walked back into Markdown, formula by formula, using the \TeX{} the model
+wrote rather than the glyphs on screen. Copying three paragraphs of somebody's
+answer and pasting them into the composer reproduces them exactly.
+
 The renderer is written by hand rather than taken from a library. Message
 content is untrusted, so everything is escaped before any structure is applied
 to it; adopting a Markdown library would mean adopting somebody else's
