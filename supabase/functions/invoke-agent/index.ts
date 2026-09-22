@@ -30,6 +30,18 @@ const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN") ?? "";
 // Deliberately a second, narrower credential: reading a repository and writing
 // to one are different privileges and should not share a token.
 const GITHUB_WRITE_TOKEN = Deno.env.get("GITHUB_WRITE_TOKEN") ?? "";
+const CALLBACK_SECRET = Deno.env.get("CAT_CALLBACK_SECRET") ?? "";
+
+// Constant time, so a caller cannot learn the secret by measuring how long a
+// wrong guess takes to be rejected. Same check agent-callback makes.
+function secretMatches(given: string): boolean {
+  if (!CALLBACK_SECRET || given.length !== CALLBACK_SECRET.length) return false;
+  let diff = 0;
+  for (let i = 0; i < given.length; i++) {
+    diff |= given.charCodeAt(i) ^ CALLBACK_SECRET.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
 // How much of the channel's conversation the agent is shown.
 const TRANSCRIPT_LIMIT = 40;
@@ -51,8 +63,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Use POST." }, 405);
 
+  // The auto-answer path. The caller is the database trigger, which has no
+  // user session to present, so it authenticates with the shared secret
+  // instead -- the same one agent-callback uses. Everything this path is
+  // allowed to do is fixed below: it can answer, and nothing else.
+  const autoSecret = req.headers.get("x-cat-secret") ?? "";
+  const isAuto = autoSecret !== "" && secretMatches(autoSecret);
+
   const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
+  if (!isAuto && !authHeader.startsWith("Bearer ")) {
     return json({ error: "Missing bearer token." }, 401);
   }
 
@@ -67,24 +86,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
     auth: { persistSession: false },
   });
 
-  const { data: userData, error: userError } = await scoped.auth.getUser();
-  if (userError || !userData?.user) {
-    return json({ error: "Not signed in." }, 401);
-  }
-  const userId = userData.user.id;
+  const MEMBER_COLS =
+    "id, display_name, username, specialty, can_invoke_agent, can_request_changes, is_admin";
 
-  const { data: member } = await admin
-    .from("members")
-    .select("id, display_name, username, specialty, can_invoke_agent, can_request_changes, is_admin")
-    .eq("id", userId)
-    .maybeSingle();
+  // On the auto path there is nobody to identify: the question was asked by
+  // someone who by definition may not summon an agent, and the channel's
+  // setting is what permits the answer. Who they are is resolved from the
+  // payload below, once we know which channel this is.
+  let member: Member | null = null;
 
-  if (!member) return json({ error: "You are not a member of this workspace." }, 403);
-  if (!member.can_invoke_agent) {
-    return json(
-      { error: "You do not have permission to invoke an agent in this workspace." },
-      403,
-    );
+  if (!isAuto) {
+    const { data: userData, error: userError } = await scoped.auth.getUser();
+    if (userError || !userData?.user) {
+      return json({ error: "Not signed in." }, 401);
+    }
+
+    const { data: found } = await admin
+      .from("members")
+      .select(MEMBER_COLS)
+      .eq("id", userData.user.id)
+      .maybeSingle();
+
+    if (!found) return json({ error: "You are not a member of this workspace." }, 403);
+    if (!found.can_invoke_agent) {
+      return json(
+        { error: "You do not have permission to invoke an agent in this workspace." },
+        403,
+      );
+    }
+    member = found as Member;
   }
 
   let payload: {
@@ -92,6 +122,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     agent?: string;
     prompt?: string;
     model_override?: string;
+    auto_for?: string;
   };
   try {
     payload = await req.json();
@@ -117,7 +148,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // on, so this is the same class of privilege as invoking an agent at all.
   // Everything downstream reads agent.model, so there is nothing else to thread.
   if (model_override) {
-    if (!member.is_admin) {
+    if (!member?.is_admin) {
       return json({ error: "Only admins may override the model for a single reply." }, 403);
     }
     agent.model = model_override;
@@ -131,11 +162,43 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: channel } = await admin
     .from("channels")
-    .select("id, slug, name, purpose, github_owner, github_repo, github_branch, allow_writes")
+    .select(
+      "id, slug, name, purpose, github_owner, github_repo, github_branch, allow_writes, auto_answer_agent",
+    )
     .eq("id", channel_id)
     .maybeSingle();
 
   if (!channel) return json({ error: "Unknown channel." }, 404);
+
+  // The secret proves the call came from our own trigger. It does not decide
+  // what the call may do -- the channel does. Checking the setting here means
+  // that even if the secret leaked, it could not summon an agent into a
+  // channel where /answer is off, or summon an agent other than the one
+  // configured.
+  if (isAuto) {
+    if (channel.auto_answer_agent !== agent.slug) {
+      return json(
+        { error: `Automatic answers are not enabled for @${agent.slug} in #${channel.slug}.` },
+        403,
+      );
+    }
+
+    const { data: author } = await admin
+      .from("members")
+      .select(MEMBER_COLS)
+      .eq("id", payload.auto_for ?? "")
+      .maybeSingle();
+
+    if (!author) return json({ error: "Unknown author for an automatic answer." }, 400);
+
+    // The question was theirs, so the agent is told who it is answering and
+    // steers by their specialty -- but can_request_changes is dropped on the
+    // floor. An unprompted answer is a reply, never a pull request, whatever
+    // the asker would be allowed to ask for by name.
+    member = { ...(author as Member), can_request_changes: false };
+  }
+
+  if (!member) return json({ error: "Could not identify the asker." }, 500);
 
   // The placeholder. Everyone sees "Claude is thinking..." from this moment on.
   const { data: placeholder, error: placeholderError } = await admin
@@ -145,7 +208,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       agent_slug: agent.slug,
       body: "",
       status: "pending",
-      metadata: { invoked_by: member.display_name, invoked_by_id: member.id },
+      metadata: {
+        invoked_by: member.display_name,
+        invoked_by_id: member.id,
+        // Recorded so a reply nobody asked for is identifiable afterwards,
+        // in the transcript and in /status.
+        auto: isAuto,
+      },
     })
     .select("id")
     .single();
@@ -187,6 +256,12 @@ type Person = {
   username: string | null;
   specialty: string | null;
   can_request_changes?: boolean;
+};
+
+type Member = Person & {
+  id: string;
+  can_invoke_agent: boolean;
+  is_admin: boolean;
 };
 
 async function respond(

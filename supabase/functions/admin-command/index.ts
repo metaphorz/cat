@@ -85,6 +85,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return await modelCommand(admin, args);
       case "resolve":
         return await resolveCommand(args);
+      case "answer":
+        return await answerCommand(admin, args, member, payload.channel_id ?? "");
       case "status":
         return await statusCommand(admin);
       case "who":
@@ -322,11 +324,102 @@ async function resolveCommand(args: string[]): Promise<Response> {
   );
 }
 
+// ---------------------------------------------------------------- /answer
+
+// Off by default, per channel, and remembered with the name of whoever turned
+// it on -- because while it is on, people who cannot summon an agent are
+// nonetheless spending the balance, and the person who allowed that should be
+// on the record.
+async function answerCommand(
+  admin: SupabaseClient,
+  args: string[],
+  member: { id: string; display_name: string },
+  channelId: string,
+): Promise<Response> {
+  if (!channelId) return json({ error: "No channel." }, 400);
+
+  const { data: channel } = await admin
+    .from("channels")
+    .select("id, slug, auto_answer_agent, auto_answer_by, auto_answer_since")
+    .eq("id", channelId)
+    .maybeSingle();
+
+  if (!channel) return json({ error: "Unknown channel." }, 404);
+
+  const want = (args[0] ?? "").toLowerCase();
+
+  // `/answer` with nothing after it reports rather than toggles. A switch that
+  // changes state when you ask it what state it is in is a bad switch.
+  if (!want) {
+    if (!channel.auto_answer_agent) {
+      return ok(
+        `Automatic answers are **off** in #${channel.slug}.\n\n` +
+          "`/answer on` to let anyone's question be answered without an " +
+          "@mention; `/answer on gemini` to choose which agent.",
+      );
+    }
+    const { data: who } = await admin
+      .from("members")
+      .select("display_name")
+      .eq("id", channel.auto_answer_by ?? "")
+      .maybeSingle();
+
+    return ok(
+      `Automatic answers are **on** in #${channel.slug}: ` +
+        `**@${channel.auto_answer_agent}** replies to anyone but ` +
+        `${who?.display_name ?? "whoever set it"}, since ` +
+        `${String(channel.auto_answer_since ?? "").slice(0, 16).replace("T", " ")}.\n\n` +
+        "`/answer off` to stop.",
+    );
+  }
+
+  if (want === "off") {
+    const { error } = await admin
+      .from("channels")
+      .update({ auto_answer_agent: null, auto_answer_by: null, auto_answer_since: null })
+      .eq("id", channelId);
+    if (error) throw new Error(error.message);
+    return ok(`Automatic answers are **off** in #${channel.slug}. Agents wait to be named again.`);
+  }
+
+  if (want !== "on") return ok("Usage: `/answer`, `/answer on [agent]`, `/answer off`.");
+
+  const slug = (args[1] ?? "claude").toLowerCase();
+  const { data: agent } = await admin
+    .from("agents")
+    .select("slug, display_name, enabled")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (!agent || !agent.enabled) return ok(`There is no enabled agent called \`${slug}\`.`);
+
+  const { error } = await admin
+    .from("channels")
+    .update({
+      auto_answer_agent: agent.slug,
+      auto_answer_by: member.id,
+      auto_answer_since: new Date().toISOString(),
+    })
+    .eq("id", channelId);
+
+  if (error) throw new Error(error.message);
+
+  return ok(
+    `Automatic answers are **on** in #${channel.slug}.\n\n` +
+      `**@${agent.slug}** now answers every message in this channel except ` +
+      `yours -- no @mention needed, and from anyone, including people without ` +
+      `permission to summon an agent. That is the point of it, and it is also ` +
+      `the cost: each message buys a reply. It cannot open pull requests on ` +
+      `this path whatever anyone's permissions say.\n\n` +
+      `\`/answer off\` when the conversation is done.`,
+  );
+}
+
 // ---------------------------------------------------------------- /status
 
 async function statusCommand(admin: SupabaseClient): Promise<Response> {
   const [{ data: channels }, { data: messages }, { data: members }] = await Promise.all([
-    admin.from("channels").select("id, slug").order("position"),
+    admin.from("channels").select("id, slug, auto_answer_agent").order("position"),
     admin.from("messages").select("channel_id, author_id, agent_slug, status, metadata, created_at"),
     admin.from("members").select("id, display_name, username"),
   ]);
@@ -341,7 +434,8 @@ async function statusCommand(admin: SupabaseClient): Promise<Response> {
       null,
     );
     return `| #${c.slug} | ${mine.length} | ${mine.filter((m) => m.agent_slug).length} | ` +
-      `${last ? new Date(last).toISOString().slice(0, 16).replace("T", " ") : "--"} |`;
+      `${last ? new Date(last).toISOString().slice(0, 16).replace("T", " ") : "--"} | ` +
+      `${c.auto_answer_agent ? "**@" + c.auto_answer_agent + "**" : "--"} |`;
   }).join("\n");
 
   // Token and cost accounting rides along in each agent message's metadata,
@@ -376,7 +470,8 @@ async function statusCommand(admin: SupabaseClient): Promise<Response> {
     `**Workspace**\n\n` +
       `${msgs.length} messages · ${members?.length ?? 0} members · ` +
       `${pending} pending · ${errored} errored\n\n` +
-      `**By channel**\n\n| channel | messages | agent | last |\n|---|---|---|---|\n${perChannel}\n\n` +
+      `**By channel**\n\n| channel | messages | agent | last | /answer |\n` +
+      `|---|---|---|---|---|\n${perChannel}\n\n` +
       `**By person**\n\n| who | messages |\n|---|---|\n${perPerson || "| -- | 0 |"}\n\n` +
       `**Agent replies by model**\n\n| model | replies |\n|---|---|\n${modelRowsUsed || "| -- | 0 |"}\n\n` +
       `**Tokens** ${inTok.toLocaleString()} in · ${outTok.toLocaleString()} out · ` +

@@ -845,6 +845,7 @@ function updateHint() {
 const COMMANDS = [
   { name: "model", args: "[agent] [model]", blurb: "list or switch the default model" },
   { name: "retry", args: "[model]", blurb: "rerun the last ask on another model" },
+  { name: "answer", args: "on|off [agent]", blurb: "answer this channel without @mentions" },
   { name: "status", args: "", blurb: "messages, tokens and channels" },
   { name: "who", args: "", blurb: "members, and who has yet to sign in" },
   { name: "cost", args: "", blurb: "OpenRouter credit remaining" },

@@ -436,6 +436,8 @@ name is also a search term, \texttt{/model claude} answers both readings: what
 model identifier, switches that agent's default.\\
 \texttt{/retry} & Re-runs your last question to an agent on a different model,
 leaving the stored default alone.\\
+\texttt{/answer} & Turns unprompted answering on or off for the current
+channel. Off by default. See \S\ref{sec:answer}.\\
 \texttt{/status} & Message, token and cache counts by channel, person and
 model.\\
 \texttt{/who} & Everyone on the allowlist, and which of them have yet to sign
@@ -473,6 +475,45 @@ having to know that those names exist, and it will go on doing so as the
 version numbers move. Six at most, which in practice today means four for
 Anthropic and three each for Google and the Codex line. \texttt{/model claude
 all} gives the unabridged list for the rare case that matters.
+
+\subsection{Unprompted answers}
+\label{sec:answer}
+
+Ordinarily an agent speaks only when someone with \texttt{can\_invoke\_agent}
+names it. \texttt{/answer on} suspends that for one channel: every message
+from anyone other than the person who switched it on gets an answer, with no
+mention needed. \texttt{/answer off} restores the normal rule, and
+\texttt{/answer} on its own reports which state the channel is in without
+changing it.
+
+It exists for the case where the administrator's only contribution to a
+conversation would be to type ``\texttt{@claude respond}'' after each question
+somebody else asks. Turning it on removes that step.
+
+Be clear about what it changes. While it is on, people who are deliberately
+\emph{not} allowed to summon an agent are nonetheless spending the OpenRouter
+balance, one reply per message. That is the intent, but it is the reason the
+setting is off by default, scoped to a single channel, and recorded with the
+name of whoever enabled it and when. \texttt{/status} shows which channels
+have it on.
+
+What it does not change is equally deliberate. An unprompted answer is a
+reply, never a pull request: the code-change tool is forced off on this path
+regardless of the asker's \texttt{can\_request\_changes}. Agent messages never
+trigger further answers, or a channel would talk to itself until the balance
+ran out. And a question asked while an answer is still being written is
+ignored rather than queued, so a burst of messages does not buy a reply to
+each one.
+
+The answer is dispatched by a database trigger rather than by the browser.
+Two reasons: it works when nobody has the page open, and it fires exactly
+once however many clients are connected---a trigger in the client would race,
+with every open tab asking for its own answer to the same question. The
+trigger calls the Edge Function with a shared secret, which proves the request
+came from CAT. The secret is not what grants the privilege, though: the
+function independently checks that the channel really does have the setting
+on, and for that agent, so a leaked secret could not summon an agent into a
+channel where the feature is switched off.
 
 \subsection{Adding a person}
 
