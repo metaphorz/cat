@@ -122,6 +122,10 @@ jobs:
           and write what you could not resolve into CHANGE_NOTES.md at the
           repository root.
 
+          Do not modify anything under .github/. That includes the workflow
+          running you. If the task seems to require it, stop and write why
+          into CHANGE_NOTES.md instead.
+
           Do not commit; the workflow does that.
           PROMPT_EOF
           )
@@ -164,6 +168,23 @@ jobs:
           git config user.email "noreply@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add -A
+
+          # The agent has no business editing the workflow that runs it: a job
+          # that can rewrite its own definition can change which secrets it is
+          # handed. Request 3 tried, and was stopped only because CAT_PR_TOKEN
+          # lacks the workflows permission -- which cost the whole run. Dropping
+          # the change here makes it a non-event instead of a failure, and does
+          # not depend on the token staying narrow.
+          if ! git diff --cached --quiet -- .github/; then
+            echo "::warning::the agent modified files under .github/; those changes were dropped"
+            git reset -q -- .github/
+            git checkout -q -- .github/
+          fi
+
+          if [ -z "$(git diff --cached --name-only)" ]; then
+            echo "no-changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git commit -m "$TITLE" -m "Requested by ${REQUESTED_BY} via cat. Agent-authored; review before merging."
           git push origin "$BRANCH"
 
