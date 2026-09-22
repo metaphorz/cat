@@ -10,7 +10,7 @@ const el = {
   people: $("people"), meName: $("me-name"), meBadge: $("me-badge"), signout: $("signout"),
   channelName: $("channel-name"), channelPurpose: $("channel-purpose"),
   channelRepo: $("channel-repo"), messages: $("messages"), composer: $("composer"),
-  input: $("input"), send: $("send"), hint: $("hint"),
+  input: $("input"), send: $("send"), hint: $("hint"), palette: $("palette"),
   fontSize: $("font-size"), theme: $("theme"),
 };
 
@@ -69,6 +69,8 @@ const state = {
   online: new Set(), // member ids currently present
   channel: null,
   messages: [],
+  notes: [],         // command replies: local to this browser, never stored
+  paletteAt: -1,     // highlighted row in the command palette, -1 when closed
   feed: null,        // realtime subscription for the open channel
   presence: null,    // workspace-wide presence subscription
   entering: null,    // the user id currently being loaded, if any
@@ -178,8 +180,8 @@ function teardown() {
   if (state.presence) supabase.removeChannel(state.presence);
   Object.assign(state, {
     me: null, channels: [], agents: [], people: new Map(), online: new Set(),
-    specialties: new Map(), channel: null, messages: [], feed: null,
-    presence: null, entering: null,
+    specialties: new Map(), channel: null, messages: [], notes: [],
+    paletteAt: -1, feed: null, presence: null, entering: null,
   });
 }
 
@@ -324,6 +326,9 @@ function watchPresence() {
 
 async function openChannel(channel) {
   state.channel = channel;
+  // A command's answer was about the channel it was run in, so it does not
+  // follow you to the next one.
+  state.notes = [];
   window.location.hash = channel.slug;
 
   for (const b of el.channels.querySelectorAll("button")) {
@@ -409,18 +414,15 @@ function renderMessages() {
   const pinned =
     el.messages.scrollHeight - el.messages.scrollTop - el.messages.clientHeight < 120;
 
-  if (!state.messages.length) {
-    el.messages.replaceChildren(
-      Object.assign(document.createElement("p"), {
-        className: "empty",
-        textContent: `No messages in #${state.channel.slug} yet.`,
-      }),
-    );
-    return;
-  }
-
   const rows = [];
   let prev = null;
+
+  if (!state.messages.length) {
+    rows.push(Object.assign(document.createElement("p"), {
+      className: "empty",
+      textContent: `No messages in #${state.channel.slug} yet.`,
+    }));
+  }
 
   for (const m of state.messages) {
     const speaker = speakerOf(m);
@@ -430,6 +432,11 @@ function renderMessages() {
     rows.push(renderMessage(m, speaker, sameSpeaker && soonAfter));
     prev = m;
   }
+
+  // Command replies live at the foot of the conversation rather than in it.
+  // They are rebuilt from state.notes on every render because nothing else
+  // knows they exist -- no row, no realtime event, nothing to reconcile.
+  rows.push(...state.notes.map(renderNote));
 
   el.messages.replaceChildren(...rows);
   if (pinned) el.messages.scrollTop = el.messages.scrollHeight;
@@ -734,10 +741,38 @@ function escapeHtml(s) {
 el.input.addEventListener("input", () => {
   el.input.style.height = "auto";
   el.input.style.height = Math.min(el.input.scrollHeight, 220) + "px";
+  renderPalette();
   updateHint();
 });
 
 el.input.addEventListener("keydown", (e) => {
+  // While the palette is open it owns the arrows, Enter, Tab and Escape --
+  // Enter especially, which would otherwise send "/mod" as a message.
+  if (!el.palette.hidden) {
+    const hits = paletteHits();
+
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      state.paletteAt = (state.paletteAt + step + hits.length) % hits.length;
+      renderPalette();
+      return;
+    }
+
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      paletteChoose(hits[state.paletteAt].dataset.name);
+      return;
+    }
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      el.palette.hidden = true;
+      state.paletteAt = -1;
+      return;
+    }
+  }
+
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     el.composer.requestSubmit();
@@ -753,6 +788,12 @@ function mentionedAgent(text) {
 }
 
 function updateHint() {
+  if (state.me?.is_admin && el.input.value.startsWith("/")) {
+    el.hint.className = "hint";
+    el.hint.textContent = "Commands run for you alone -- nothing is posted.";
+    return;
+  }
+
   const agent = mentionedAgent(el.input.value);
   if (!agent) {
     const names = state.agents.map((a) => "@" + a.slug).join(", ");
@@ -770,10 +811,188 @@ function updateHint() {
   }
 }
 
+// ------------------------------------------------------------ slash commands
+
+// Offered only to admins, and only as a convenience: admin-command refuses
+// the request itself, so knowing the names buys a non-admin nothing.
+const COMMANDS = [
+  { name: "model", args: "[agent] [model]", blurb: "list or switch the default model" },
+  { name: "retry", args: "[model]", blurb: "rerun the last ask on another model" },
+  { name: "status", args: "", blurb: "messages, tokens and channels" },
+  { name: "who", args: "", blurb: "members, and who has yet to sign in" },
+  { name: "cost", args: "", blurb: "OpenRouter credit remaining" },
+  { name: "invite", args: "<email> <specialty>", blurb: "add someone to the allowlist" },
+];
+
+function renderNote(note) {
+  const box = document.createElement("div");
+  box.className = "note" + (note.error ? " err" : "");
+  box.innerHTML =
+    `<div class="note-head"><b>/${escapeHtml(note.command)}</b>` +
+    `<span>only you can see this</span></div>` +
+    renderMarkdown(note.text);
+  return box;
+}
+
+function addNote(command, text, error = false) {
+  state.notes.push({ command, text, error });
+  renderMessages();
+  el.messages.scrollTop = el.messages.scrollHeight;
+}
+
+// The command word while it is still being typed -- "mod" for "/mod". Null
+// once a space is typed, since by then the palette would be in the way of
+// the arguments rather than helping with them.
+function commandDraft() {
+  if (!state.me?.is_admin) return null;
+  const m = /^\/([a-z]*)$/i.exec(el.input.value);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function renderPalette() {
+  const draft = commandDraft();
+  const hits = draft === null
+    ? []
+    : COMMANDS.filter((c) => c.name.startsWith(draft));
+
+  if (!hits.length) {
+    el.palette.hidden = true;
+    state.paletteAt = -1;
+    return;
+  }
+
+  if (state.paletteAt < 0 || state.paletteAt >= hits.length) state.paletteAt = 0;
+
+  el.palette.innerHTML = hits
+    .map((c, i) =>
+      `<div class="palette-item" role="option" data-name="${c.name}" ` +
+      `aria-selected="${i === state.paletteAt}">` +
+      `<span class="palette-name">/${c.name}</span>` +
+      `<span class="palette-args">${escapeHtml(c.args)}</span>` +
+      `<span class="palette-blurb">${escapeHtml(c.blurb)}</span></div>`
+    )
+    .join("");
+  el.palette.hidden = false;
+}
+
+function paletteHits() {
+  return [...el.palette.querySelectorAll(".palette-item")];
+}
+
+// Completing a command leaves the trailing space in place: every command that
+// takes arguments is then ready for them, and the palette closes because the
+// draft is no longer a bare command word.
+function paletteChoose(name) {
+  const spec = COMMANDS.find((c) => c.name === name);
+  el.input.value = "/" + name + (spec?.args ? " " : "");
+  el.palette.hidden = true;
+  state.paletteAt = -1;
+  el.input.focus();
+  updateHint();
+}
+
+el.palette.addEventListener("mousedown", (e) => {
+  // mousedown, not click: the textarea must not lose focus first.
+  e.preventDefault();
+  const item = e.target.closest(".palette-item");
+  if (item) paletteChoose(item.dataset.name);
+});
+
+async function runCommand(raw) {
+  const [word, ...args] = raw.slice(1).split(/\s+/).filter(Boolean);
+  const command = (word ?? "").toLowerCase();
+
+  if (!COMMANDS.some((c) => c.name === command)) {
+    addNote(command || "?", `No such command. Type \`/\` to see them all.`, true);
+    return;
+  }
+
+  if (command === "retry") return await retryCommand(args);
+
+  const { data, error } = await supabase.functions.invoke("admin-command", {
+    body: { command, args, channel_id: state.channel.id },
+  });
+
+  if (error) {
+    let detail = error.message;
+    try {
+      const parsed = await error.context?.json?.();
+      if (parsed?.error) detail = parsed.error;
+    } catch { /* fall back to the generic message */ }
+    addNote(command, detail, true);
+    return;
+  }
+
+  addNote(command, data?.text ?? "Done.");
+
+  // /model changes stored state the sidebar is showing, and /invite changes
+  // who the people list should contain.
+  if (command === "model") await loadAgents();
+  if (command === "invite") await loadPeople();
+}
+
+// Rerun the last thing you asked an agent, on a different model, without
+// touching the stored default. The reply is a real message: everyone sees it.
+async function retryCommand(args) {
+  const last = [...state.messages]
+    .reverse()
+    .find((m) => m.author_id === state.me.id && mentionedAgent(m.body));
+
+  if (!last) {
+    addNote("retry", "Nothing of yours in this channel has addressed an agent yet.", true);
+    return;
+  }
+
+  const agent = mentionedAgent(last.body);
+  let model = null;
+
+  if (args.length) {
+    const { data, error } = await supabase.functions.invoke("admin-command", {
+      body: { command: "resolve", args, channel_id: state.channel.id },
+    });
+    if (error) {
+      addNote("retry", "Could not check that model.", true);
+      return;
+    }
+    if (!data?.model) {
+      addNote("retry", data?.text ?? "That model could not be resolved.", true);
+      return;
+    }
+    model = data.model;
+  }
+
+  addNote(
+    "retry",
+    `Re-asking **@${agent.slug}**` + (model ? ` on \`${model}\`` : " on its current model") +
+      `:\n\n> ${last.body.slice(0, 200)}`,
+  );
+
+  await invoke(agent, last.body, model);
+}
+
 el.composer.addEventListener("submit", async (e) => {
   e.preventDefault();
   const body = el.input.value.trim();
   if (!body || !state.channel) return;
+
+  // Commands are intercepted before the insert, which is the whole reason
+  // nobody else ever sees one: no row, so no realtime event, and nothing in
+  // the transcript invoke-agent hands the model as history.
+  if (state.me?.is_admin && body.startsWith("/")) {
+    el.input.value = "";
+    el.input.style.height = "auto";
+    el.palette.hidden = true;
+    state.paletteAt = -1;
+    el.send.disabled = true;
+    try {
+      await runCommand(body);
+    } finally {
+      el.send.disabled = false;
+      updateHint();
+      el.input.focus();
+    }
+    return;
+  }
 
   el.send.disabled = true;
   el.input.value = "";
@@ -808,9 +1027,14 @@ el.composer.addEventListener("submit", async (e) => {
   el.input.focus();
 });
 
-async function invoke(agent, prompt) {
+async function invoke(agent, prompt, modelOverride = null) {
   const { error } = await supabase.functions.invoke("invoke-agent", {
-    body: { channel_id: state.channel.id, agent: agent.slug, prompt },
+    body: {
+      channel_id: state.channel.id,
+      agent: agent.slug,
+      prompt,
+      ...(modelOverride ? { model_override: modelOverride } : {}),
+    },
   });
 
   if (!error) return;

@@ -410,9 +410,60 @@ fixed-width column reads worse than no change at all.
 
 \section{Administration}
 
+\subsection{Slash commands}
+\label{sec:slash}
+
+Most of the administration below can also be done from the composer. Typing
+\texttt{/} opens a palette of commands; the arrow keys move through it and
+\textsc{enter} completes the one you want. The palette appears only for
+members whose \texttt{is\_admin} flag is set.
+
+That last sentence describes the interface, not the protection. As everywhere
+else in CAT, hiding a control is cosmetic: the \texttt{admin-command} Edge
+Function re-checks \texttt{is\_admin} on every call, so a member who reads
+\texttt{app.js} and posts the request by hand is refused by the server rather
+than by the absence of a menu.
+
+\begin{center}
+\begin{tabular}{lp{8.2cm}}
+\toprule
+command & what it does\\
+\midrule
+\texttt{/model} & Lists what each agent is running. With a search term, lists
+matching models with context length and price. With an agent and a model
+identifier, switches that agent's default.\\
+\texttt{/retry} & Re-runs your last question to an agent on a different model,
+leaving the stored default alone.\\
+\texttt{/status} & Message, token and cache counts by channel, person and
+model.\\
+\texttt{/who} & Everyone on the allowlist, and which of them have yet to sign
+in.\\
+\texttt{/cost} & OpenRouter credit remaining.\\
+\texttt{/invite} & Adds a row to the allowlist.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+A command is never posted. It is intercepted in the composer before the
+\texttt{insert}, so there is no message row, no realtime event, and nothing
+for other members to see. This also keeps commands out of the transcript that
+\texttt{invoke-agent} hands the model as conversation history, which matters:
+a stored \texttt{/model} line would otherwise arrive in the next prompt as
+noise. The answer is rendered locally and is gone on the next reload.
+
+Two of these deserve a note. \texttt{/model} changes stored state: the switch
+applies to every channel and every member, permanently, and nobody is told.
+\texttt{/retry} is the smaller instrument, and is usually the one wanted when
+a particular answer is simply taking too long. Both refuse any model that
+OpenRouter reports cannot use tools---roughly one in six of them---because the
+agent reads the repository through tool calls, and an agent that has silently
+lost that ability looks like a model that has become vague rather than one
+that cannot open a file.
+
 \subsection{Adding a person}
 
-One row, in the Supabase SQL editor:
+Either \texttt{/invite alice@example.edu statistics Alice Reyes}, or the row
+it writes, in the Supabase SQL editor:
 
 \begin{lstlisting}[language=SQL]
 insert into public.allowlist
@@ -438,7 +489,9 @@ where username = 'alice';
 Three states are easy to confuse: \emph{invited} (on the allowlist, possibly
 never seen), \emph{member} (has signed in at least once), and \emph{present}
 (has the application open right now). Only the last two appear in the sidebar,
-and presence is live state that is not stored anywhere.
+and presence is live state that is not stored anywhere. \texttt{/who}
+(\S\ref{sec:slash}) answers the first two from the composer; the query behind
+it is:
 
 \begin{lstlisting}[language=SQL]
 select a.email,

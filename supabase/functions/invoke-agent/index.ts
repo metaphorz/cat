@@ -75,7 +75,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: member } = await admin
     .from("members")
-    .select("id, display_name, username, specialty, can_invoke_agent, can_request_changes")
+    .select("id, display_name, username, specialty, can_invoke_agent, can_request_changes, is_admin")
     .eq("id", userId)
     .maybeSingle();
 
@@ -87,14 +87,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  let payload: { channel_id?: string; agent?: string; prompt?: string };
+  let payload: {
+    channel_id?: string;
+    agent?: string;
+    prompt?: string;
+    model_override?: string;
+  };
   try {
     payload = await req.json();
   } catch {
     return json({ error: "Body must be JSON." }, 400);
   }
 
-  const { channel_id, agent: agentSlug, prompt } = payload;
+  const { channel_id, agent: agentSlug, prompt, model_override } = payload;
   if (!channel_id || !agentSlug || !prompt?.trim()) {
     return json({ error: "channel_id, agent and prompt are all required." }, 400);
   }
@@ -106,6 +111,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .maybeSingle();
 
   if (!agent || !agent.enabled) return json({ error: `Unknown agent @${agentSlug}.` }, 404);
+
+  // /retry runs one answer on a different model without disturbing the stored
+  // default. Admins only: the model decides what the OpenRouter key is spent
+  // on, so this is the same class of privilege as invoking an agent at all.
+  // Everything downstream reads agent.model, so there is nothing else to thread.
+  if (model_override) {
+    if (!member.is_admin) {
+      return json({ error: "Only admins may override the model for a single reply." }, 403);
+    }
+    agent.model = model_override;
+  }
   if (agent.provider !== "anthropic" && agent.provider !== "openrouter") {
     return json(
       { error: `@${agent.slug} is registered as a ${agent.provider} agent, which is not wired up yet.` },
