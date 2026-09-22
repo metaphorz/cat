@@ -424,7 +424,22 @@ function renderMessages() {
     }));
   }
 
-  for (const m of state.messages) {
+  // Notes are merged in by time rather than appended, so a message sent after
+  // a command appears after it. Appending them put every later message below
+  // the reply -- and under a tall one like /model, below the fold, which read
+  // as the message never having been sent at all.
+  const timeline = [
+    ...state.messages.map((m) => ({ at: m.created_at, message: m })),
+    ...state.notes.map((n) => ({ at: n.created_at, note: n })),
+  ].sort((a, b) => new Date(a.at) - new Date(b.at));
+
+  for (const item of timeline) {
+    if (item.note) {
+      rows.push(renderNote(item.note));
+      prev = null; // never continue a speaker's run across a note
+      continue;
+    }
+    const m = item.message;
     const speaker = speakerOf(m);
     const sameSpeaker = prev && speakerOf(prev).key === speaker.key;
     const soonAfter =
@@ -432,11 +447,6 @@ function renderMessages() {
     rows.push(renderMessage(m, speaker, sameSpeaker && soonAfter));
     prev = m;
   }
-
-  // Command replies live at the foot of the conversation rather than in it.
-  // They are rebuilt from state.notes on every render because nothing else
-  // knows they exist -- no row, no realtime event, nothing to reconcile.
-  rows.push(...state.notes.map(renderNote));
 
   el.messages.replaceChildren(...rows);
   if (pinned) el.messages.scrollTop = el.messages.scrollHeight;
@@ -852,7 +862,7 @@ function renderNote(note) {
 }
 
 function addNote(command, text, error = false) {
-  state.notes.push({ command, text, error });
+  state.notes.push({ command, text, error, created_at: new Date().toISOString() });
   renderMessages();
   el.messages.scrollTop = el.messages.scrollHeight;
 }
