@@ -560,7 +560,12 @@ function renderMarkdown(src) {
 
   // 2. Maths, display before inline so $$...$$ is not eaten by $...$.
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => hold(renderMath(tex, true)));
-  text = text.replace(/(^|[^\\$])\$([^$\n]+?)\$/g, (_, before, tex) =>
+  // A dollar amount is not an equation. Two prices on one line -- "$5.00 in,
+  // $25.00 out" -- otherwise pair up and render as mathematics, which is how
+  // /model and /cost first came out. Real inline maths never opens on a digit
+  // or a space ($x^2$, $\alpha$), so requiring that is enough to tell them
+  // apart without a flag.
+  text = text.replace(/(^|[^\\$])\$(?![\d\s])([^$\n]+?)\$/g, (_, before, tex) =>
     before + hold(renderMath(tex, false)));
 
   // 3. Everything that survives is prose, and is escaped before any structure
@@ -761,7 +766,19 @@ el.input.addEventListener("keydown", (e) => {
 
     if (e.key === "Enter" || e.key === "Tab") {
       e.preventDefault();
-      paletteChoose(hits[state.paletteAt].dataset.name);
+      const picked = hits[state.paletteAt].dataset.name;
+
+      // Enter on a command already typed in full runs it. Otherwise the
+      // palette would swallow the keystroke, leaving the draft untouched and
+      // the command apparently ignored until Enter was pressed a second time.
+      if (e.key === "Enter" && commandDraft() === picked) {
+        el.palette.hidden = true;
+        state.paletteAt = -1;
+        el.composer.requestSubmit();
+        return;
+      }
+
+      paletteChoose(picked);
       return;
     }
 

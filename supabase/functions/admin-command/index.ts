@@ -430,14 +430,10 @@ async function costCommand(): Promise<Response> {
     data: { total_credits: number; total_usage: number };
   };
   const left = data.total_credits - data.total_usage;
-  const pct = data.total_credits ? (left / data.total_credits) * 100 : 0;
 
-  return ok(
-    `**OpenRouter**\n\n` +
-      `**$${left.toFixed(2)} left** of $${data.total_credits.toFixed(2)} ` +
-      `(${pct.toFixed(0)}%) · $${data.total_usage.toFixed(2)} used\n\n` +
-      `Everything bills here: all three chat agents and the pull-request action.`,
-  );
+  // The one number worth walking across the room for. Everything else about
+  // the account is a click away on OpenRouter and was only ever clutter here.
+  return ok(`**$${left.toFixed(2)} left** -- OpenRouter`);
 }
 
 // ---------------------------------------------------------------- /invite
