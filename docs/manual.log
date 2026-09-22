@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  22 SEP 2026 13:08
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  22 SEP 2026 13:30
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -362,7 +362,7 @@ Package hyperref Info: Link coloring ON on input line 27.
 \openout3 = `manual.out'.
 
 \c@lstlisting=\count304
-<figures/mark.png, id=140, 421.575pt x 526.96875pt>
+<figures/mark.png, id=148, 421.575pt x 526.96875pt>
 File: figures/mark.png Graphic file (type png)
 <use figures/mark.png>
 Package pdftex.def Info: figures/mark.png  used on input line 30.
@@ -388,7 +388,7 @@ es/mark.png (PNG copy)>])
 
 
 [2]
-<figures/interface.png, id=191, 1382.16376pt x 853.1875pt>
+<figures/interface.png, id=201, 1382.16376pt x 853.1875pt>
 File: figures/interface.png Graphic file (type png)
 <use figures/interface.png>
 Package pdftex.def Info: figures/interface.png  used on input line 56.
@@ -396,7 +396,7 @@ Package pdftex.def Info: figures/interface.png  used on input line 56.
 
 
 [3 <./figures/interface.png>]
-<figures/architecture.png, id=203, 1827.82875pt x 1133.23375pt>
+<figures/architecture.png, id=213, 1827.82875pt x 1133.23375pt>
 File: figures/architecture.png Graphic file (type png)
 <use figures/architecture.png>
 Package pdftex.def Info: figures/architecture.png  used on input line 107.
@@ -409,7 +409,7 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 [4{/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc
 }]
-<figures/agent-flow.png, id=209, 1415.2875pt x 1777.64125pt>
+<figures/agent-flow.png, id=219, 1415.2875pt x 1777.64125pt>
 File: figures/agent-flow.png Graphic file (type png)
 <use figures/agent-flow.png>
 Package pdftex.def Info: figures/agent-flow.png  used on input line 151.
@@ -418,7 +418,7 @@ Package pdftex.def Info: figures/agent-flow.png  used on input line 151.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-<figures/trust.png, id=210, 2606.73875pt x 442.65375pt>
+<figures/trust.png, id=220, 2606.73875pt x 442.65375pt>
 File: figures/trust.png Graphic file (type png)
 <use figures/trust.png>
 Package pdftex.def Info: figures/trust.png  used on input line 164.
@@ -434,7 +434,7 @@ File: lstlang1.sty 2024/09/23 1.10c listings language file
 )
 LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <10> not available
 (Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 219.
-<figures/schema.png, id=218, 2252.415pt x 1127.21124pt>
+<figures/schema.png, id=228, 2252.415pt x 1127.21124pt>
 File: figures/schema.png Graphic file (type png)
 <use figures/schema.png>
 Package pdftex.def Info: figures/schema.png  used on input line 233.
@@ -446,7 +446,7 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 [6]
-<figures/signin.png, id=229, 1456.44125pt x 1334.9875pt>
+<figures/signin.png, id=239, 1456.44125pt x 1334.9875pt>
 File: figures/signin.png Graphic file (type png)
 <use figures/signin.png>
 Package pdftex.def Info: figures/signin.png  used on input line 297.
@@ -458,10 +458,14 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 [7]
-<figures/pr-flow.png, id=240, 1209.51875pt x 1799.72375pt>
+
+[8]
+
+[9]
+<figures/pr-flow.png, id=265, 1209.51875pt x 1799.72375pt>
 File: figures/pr-flow.png Graphic file (type png)
 <use figures/pr-flow.png>
-Package pdftex.def Info: figures/pr-flow.png  used on input line 388.
+Package pdftex.def Info: figures/pr-flow.png  used on input line 462.
 (pdftex.def)             Requested size: 310.04002pt x 461.32637pt.
 
 
@@ -469,21 +473,19 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 
 
-[8]
-
-[9]
-
 [10]
 
 [11]
 
-[12] (/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
+[12]
+
+[13] (/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
 File: lstlang1.sty 2024/09/23 1.10c listings language file
 )
 (/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
 File: lstlang1.sty 2024/09/23 1.10c listings language file
 )
-Overfull \hbox (129.7204pt too wide) in paragraph at lines 692--702
+Overfull \hbox (129.7204pt too wide) in paragraph at lines 766--776
 []\OT1/cmr/m/n/10.95 Second, in-stall \OT1/cmtt/m/n/10.95 workflows/multimodel-
 cat-agent.yml \OT1/cmr/m/n/10.95 into the tar-get repos-i-tory at \OT1/cmtt/m/n
 /10.95 .github/workflows/cat-agent.yml\OT1/cmr/m/n/10.95 ,
@@ -491,29 +493,29 @@ cat-agent.yml \OT1/cmr/m/n/10.95 into the tar-get repos-i-tory at \OT1/cmtt/m/n
 
 
 
-[13]
-
 [14]
 
 [15]
 
-[16 <./figures/agent-flow.png> <./figures/trust.png>]
+[16]
 
-[17 <./figures/schema.png> <./figures/signin.png (PNG copy)>]
+[17 <./figures/agent-flow.png> <./figures/trust.png>]
 
-[18 <./figures/pr-flow.png>] (./manual.aux)
+[18 <./figures/schema.png> <./figures/signin.png (PNG copy)>]
+
+[19 <./figures/pr-flow.png>] (./manual.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
  ***********
 Package rerunfilecheck Info: File `manual.out' has not changed.
-(rerunfilecheck)             Checksum: 2E59E6E434FEDC297B451B54E6578767;5016.
+(rerunfilecheck)             Checksum: 8C7987C0AEFD682C8622D3DF591F2293;5339.
  ) 
 Here is how much of TeX's memory you used:
- 11787 strings out of 473190
- 178206 string characters out of 5715801
- 962488 words of memory out of 5000000
- 34804 multiletter control sequences out of 15000+600000
+ 11792 strings out of 473190
+ 178273 string characters out of 5715801
+ 962489 words of memory out of 5000000
+ 34806 multiletter control sequences out of 15000+600000
  566143 words of font info for 61 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  75i,8n,79p,708b,1997s stack positions out of 10000i,1000n,20000p,200000b,200000s
@@ -530,10 +532,10 @@ l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/local
 /texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1095.pfb></usr/local/t
 exlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1095.pfb></usr/local/tex
 live/2025/texmf-dist/fonts/type1/public/cm-super/sftt1095.pfb>
-Output written on manual.pdf (18 pages, 1320845 bytes).
+Output written on manual.pdf (19 pages, 1324932 bytes).
 PDF statistics:
- 434 PDF objects out of 1000 (max. 8388607)
- 371 compressed objects within 4 object streams
- 120 named destinations out of 1000 (max. 500000)
- 313 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 450 PDF objects out of 1000 (max. 8388607)
+ 386 compressed objects within 4 object streams
+ 123 named destinations out of 1000 (max. 500000)
+ 329 words of extra memory for PDF output out of 10000 (max. 10000000)
 

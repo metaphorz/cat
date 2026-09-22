@@ -11,6 +11,7 @@ const el = {
   channelName: $("channel-name"), channelPurpose: $("channel-purpose"),
   channelRepo: $("channel-repo"), messages: $("messages"), composer: $("composer"),
   input: $("input"), send: $("send"), hint: $("hint"), palette: $("palette"),
+  tray: $("tray"), attach: $("attach"), attachBtn: $("attach-btn"),
   fontSize: $("font-size"), theme: $("theme"),
 };
 
@@ -71,6 +72,8 @@ const state = {
   messages: [],
   notes: [],         // command replies: local to this browser, never stored
   pendingClear: null, // a /clear transcript taken but not yet acted on
+  tray: [],          // images picked but not yet sent
+  shots: new Map(),  // storage path -> signed URL, refreshed on load
   paletteAt: -1,     // highlighted row in the command palette, -1 when closed
   feed: null,        // realtime subscription for the open channel
   presence: null,    // workspace-wide presence subscription
@@ -182,7 +185,8 @@ function teardown() {
   Object.assign(state, {
     me: null, channels: [], agents: [], people: new Map(), online: new Set(),
     specialties: new Map(), channel: null, messages: [], notes: [],
-    pendingClear: null, paletteAt: -1, feed: null, presence: null, entering: null,
+    pendingClear: null, tray: [], shots: new Map(),
+    paletteAt: -1, feed: null, presence: null, entering: null,
   });
 }
 
@@ -364,7 +368,7 @@ const HISTORY_LIMIT = 300;
 async function loadMessages() {
   const { data, error } = await supabase
     .from("messages")
-    .select("id, channel_id, author_id, agent_slug, body, status, metadata, created_at")
+    .select("id, channel_id, author_id, agent_slug, body, status, metadata, attachments, created_at")
     .eq("channel_id", state.channel.id)
     .order("created_at", { ascending: false })
     .limit(HISTORY_LIMIT);
@@ -375,6 +379,7 @@ async function loadMessages() {
   }
 
   state.messages = data.reverse();
+  await signShots(state.messages);
   renderMessages();
 }
 
@@ -391,7 +396,7 @@ function subscribe() {
         table: "messages",
         filter: `channel_id=eq.${state.channel.id}`,
       },
-      (payload) => {
+      async (payload) => {
         if (payload.eventType === "INSERT") {
           if (!state.messages.some((m) => m.id === payload.new.id)) {
             state.messages.push(payload.new);
@@ -402,7 +407,13 @@ function subscribe() {
         } else if (payload.eventType === "DELETE") {
           state.messages = state.messages.filter((m) => m.id !== payload.old.id);
         }
+        // Someone else's image arrives as a path with no signature, so render
+        // once to place the message and again once its URL exists.
         renderMessages();
+        if (payload.new?.attachments?.length) {
+          await signShots([payload.new]);
+          renderMessages();
+        }
       },
     )
     .subscribe();
@@ -507,7 +518,12 @@ function renderMessage(m, speaker, continued) {
     text.className = "text";
     text.innerHTML = renderMarkdown(m.body);
   }
-  body.append(text);
+  // An image-only message has no text to draw, and an empty bubble above it
+  // reads as a rendering fault rather than as a deliberate silence.
+  if (m.body || m.status !== "complete") body.append(text);
+
+  const shots = shotsFor(m);
+  if (shots) body.append(shots);
 
   const usage = m.metadata?.usage;
   if (m.status === "complete" && usage) {
@@ -830,6 +846,20 @@ function mentionedAgent(text) {
 }
 
 function updateHint() {
+  const waiting = state.tray.filter((t) => !t.path && !t.error).length;
+  const ready = state.tray.filter((t) => t.path).length;
+  const failed = state.tray.filter((t) => t.error).length;
+
+  if (waiting || ready || failed) {
+    el.hint.className = "hint" + (failed ? " err" : "");
+    el.hint.textContent = failed
+      ? `${failed} image${failed === 1 ? "" : "s"} failed to upload`
+      : waiting
+      ? `Uploading ${waiting} image${waiting === 1 ? "" : "s"}...`
+      : `${ready} image${ready === 1 ? "" : "s"} ready. Send with or without a message.`;
+    return;
+  }
+
   if (state.me?.is_admin && el.input.value.startsWith("/")) {
     el.hint.className = "hint";
     el.hint.textContent = "Commands run for you alone -- nothing is posted.";
@@ -853,7 +883,255 @@ function updateHint() {
   }
 }
 
+
+// ------------------------------------------------------------------- images
+
+// The bucket is private, so nothing has a lasting URL. Each path is signed
+// for an hour at load time and cached; a link that expires is the price of a
+// link that cannot be forwarded out of the workspace and still work.
+const SHOT_TTL = 3600;
+
+async function signShots(messages) {
+  const paths = [];
+  for (const m of messages) {
+    for (const a of m.attachments ?? []) {
+      if (a.path && !state.shots.has(a.path)) paths.push(a.path);
+    }
+  }
+  if (!paths.length) return;
+
+  const { data, error } = await supabase.storage
+    .from("attachments")
+    .createSignedUrls(paths, SHOT_TTL);
+
+  if (error) {
+    console.error("[cat] could not sign attachments:", error);
+    return;
+  }
+  for (const row of data ?? []) {
+    if (row.signedUrl) state.shots.set(row.path, row.signedUrl);
+  }
+}
+
+function shotsFor(m) {
+  const list = (m.attachments ?? []).filter((a) => state.shots.has(a.path));
+  if (!list.length) return null;
+
+  const wrap = document.createElement("div");
+  wrap.className = "shots";
+  for (const a of list) {
+    const link = document.createElement("a");
+    link.href = state.shots.get(a.path);
+    link.target = "_blank";
+    link.rel = "noopener";
+    const img = document.createElement("img");
+    img.src = state.shots.get(a.path);
+    img.alt = a.name || "attached image";
+    img.loading = "lazy";
+    // Reserve the right box before the bytes arrive, so a long conversation
+    // does not jump about as each image lands.
+    if (a.width && a.height) {
+      img.width = a.width;
+      img.height = a.height;
+    }
+    link.append(img);
+    wrap.append(link);
+  }
+  return wrap;
+}
+
+// Measure in the browser rather than trusting a name: the dimensions are only
+// used to reserve layout space, but a wrong aspect ratio is visible.
+function measure(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight, preview: null });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: null, height: null, preview: null });
+    };
+    img.src = url;
+  });
+}
+
+const MAX_SHOT = 10 * 1024 * 1024;
+
+function renderTray() {
+  el.tray.hidden = state.tray.length === 0;
+  el.tray.replaceChildren(...state.tray.map((item, i) => {
+    const fig = document.createElement("figure");
+    fig.className = item.error ? "failed" : (item.path ? "" : "busy");
+    const img = document.createElement("img");
+    img.src = item.preview;
+    img.alt = item.file.name;
+    const drop = document.createElement("button");
+    drop.type = "button";
+    drop.textContent = "\u00d7";
+    drop.title = item.error ? item.error : "Remove";
+    drop.addEventListener("click", () => {
+      URL.revokeObjectURL(state.tray[i].preview);
+      state.tray.splice(i, 1);
+      renderTray();
+      updateHint();
+    });
+    fig.append(img, drop);
+    return fig;
+  }));
+}
+
+// Uploads start the moment a file is chosen rather than on send, so the wait
+// happens while the message is still being typed.
+async function takeFiles(files) {
+  const images = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!images.length) return;
+
+  for (const file of images) {
+    if (file.size > MAX_SHOT) {
+      el.hint.className = "hint err";
+      el.hint.textContent = `${file.name} is larger than 10 MB.`;
+      continue;
+    }
+
+    const item = { file, preview: URL.createObjectURL(file), path: null, error: null };
+    state.tray.push(item);
+    renderTray();
+
+    const dims = await measure(file);
+    const ext = (file.name.match(/\.([a-z0-9]+)$/i)?.[1] ?? "png").toLowerCase();
+    const path = `${state.me.id}/${crypto.randomUUID()}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("attachments")
+      .upload(path, file, { contentType: file.type, upsert: false });
+
+    if (error) {
+      item.error = error.message;
+      console.error("[cat] upload failed:", error);
+    } else {
+      item.path = path;
+      item.width = dims.width;
+      item.height = dims.height;
+    }
+    renderTray();
+    updateHint();
+  }
+}
+
+el.attachBtn.addEventListener("click", () => el.attach.click());
+el.attach.addEventListener("change", () => {
+  takeFiles(el.attach.files);
+  el.attach.value = "";
+});
+
+// A screen grab copied with cmd-ctrl-shift-4 arrives on the clipboard, not as
+// a file, so paste has to be handled separately from drop.
+el.input.addEventListener("paste", (e) => {
+  const files = [...(e.clipboardData?.files ?? [])];
+  if (files.some((f) => f.type.startsWith("image/"))) {
+    e.preventDefault();
+    takeFiles(files);
+  }
+});
+
+// The whole message area accepts a drop. dragenter and dragleave fire for
+// every child element the pointer crosses, so the highlight is counted in
+// rather than toggled, or it flickers its way across the conversation.
+let dragDepth = 0;
+
+function draggingFiles(e) {
+  return [...(e.dataTransfer?.types ?? [])].includes("Files");
+}
+
+el.messages.addEventListener("dragenter", (e) => {
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  dragDepth += 1;
+  el.messages.classList.add("dropping");
+});
+
+el.messages.addEventListener("dragover", (e) => {
+  if (draggingFiles(e)) e.preventDefault();
+});
+
+el.messages.addEventListener("dragleave", (e) => {
+  if (!draggingFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) el.messages.classList.remove("dropping");
+});
+
+el.messages.addEventListener("drop", (e) => {
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  el.messages.classList.remove("dropping");
+  takeFiles(e.dataTransfer.files);
+  el.input.focus();
+});
+
+// Text dragged out of a message and dropped on the composer. A textarea will
+// accept a text drop on its own, but only onto the textarea itself and only
+// once the browser has decided the gesture is a drag rather than a selection.
+// Handling it here makes the whole composer a target and makes the insertion
+// point predictable: it lands where the caret is, not where the pointer was.
+function insertAtCaret(text) {
+  const input = el.input;
+  const at = input.selectionStart ?? input.value.length;
+  const to = input.selectionEnd ?? at;
+  const before = input.value.slice(0, at);
+  const after = input.value.slice(to);
+
+  // Keep words apart when dropping into the middle of a sentence, without
+  // inventing a space at the start of an empty box.
+  const lead = before && !/\s$/.test(before) ? " " : "";
+  input.value = before + lead + text + after;
+
+  const caret = (before + lead + text).length;
+  input.setSelectionRange(caret, caret);
+  input.dispatchEvent(new Event("input"));
+  input.focus();
+}
+
+function draggingText(e) {
+  const types = [...(e.dataTransfer?.types ?? [])];
+  return types.includes("text/plain") && !types.includes("Files");
+}
+
+el.composer.addEventListener("dragover", (e) => {
+  if (draggingText(e) || draggingFiles(e)) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = draggingFiles(e) ? "copy" : "copy";
+    el.composer.classList.add("dropping");
+  }
+});
+
+el.composer.addEventListener("dragleave", (e) => {
+  if (!el.composer.contains(e.relatedTarget)) el.composer.classList.remove("dropping");
+});
+
+el.composer.addEventListener("drop", (e) => {
+  el.composer.classList.remove("dropping");
+
+  if (draggingFiles(e)) {
+    e.preventDefault();
+    takeFiles(e.dataTransfer.files);
+    el.input.focus();
+    return;
+  }
+
+  if (!draggingText(e)) return;
+  const text = e.dataTransfer.getData("text/plain");
+  if (!text) return;
+
+  e.preventDefault();
+  insertAtCaret(text.replace(/\s+$/, ""));
+});
+
 // ------------------------------------------------------------ slash commands
+
 
 // Offered only to admins, and only as a convenience: admin-command refuses
 // the request itself, so knowing the names buys a non-admin nothing.
@@ -1056,7 +1334,16 @@ async function retryCommand(args) {
 el.composer.addEventListener("submit", async (e) => {
   e.preventDefault();
   const body = el.input.value.trim();
-  if (!body || !state.channel) return;
+  const ready = state.tray.filter((t) => t.path);
+  if ((!body && !ready.length) || !state.channel) return;
+
+  // An upload still in flight would be dropped silently from the message, so
+  // wait for it rather than sending half of what was attached.
+  if (state.tray.some((t) => !t.path && !t.error)) {
+    el.hint.className = "hint";
+    el.hint.textContent = "Still uploading...";
+    return;
+  }
 
   // Commands are intercepted before the insert, which is the whole reason
   // nobody else ever sees one: no row, so no realtime event, and nothing in
@@ -1083,8 +1370,19 @@ el.composer.addEventListener("submit", async (e) => {
 
   const { data: posted, error } = await supabase
     .from("messages")
-    .insert({ channel_id: state.channel.id, author_id: state.me.id, body })
-    .select("id, channel_id, author_id, agent_slug, body, status, metadata, created_at")
+    .insert({
+      channel_id: state.channel.id,
+      author_id: state.me.id,
+      body,
+      attachments: ready.map((t) => ({
+        path: t.path,
+        name: t.file.name,
+        type: t.file.type,
+        width: t.width ?? null,
+        height: t.height ?? null,
+      })),
+    })
+    .select("id, channel_id, author_id, agent_slug, body, status, metadata, attachments, created_at")
     .single();
 
   el.send.disabled = false;
@@ -1098,6 +1396,12 @@ el.composer.addEventListener("submit", async (e) => {
 
   // Realtime usually beats this, but showing our own message immediately
   // keeps the composer feeling responsive on a slow connection.
+  for (const t of state.tray) URL.revokeObjectURL(t.preview);
+  state.tray = [];
+  renderTray();
+
+  await signShots([posted]);
+
   if (!state.messages.some((m) => m.id === posted.id)) {
     state.messages.push(posted);
     renderMessages();

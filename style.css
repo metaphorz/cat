@@ -513,10 +513,97 @@ body {
 .composer-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   margin-top: 7px;
 }
+
+.hint { flex: 1; }
+
+.icon-btn {
+  flex: none;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--text-dim);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Images waiting to be sent. They sit above the text box so the composer
+   grows downward into the conversation rather than pushing the text away. */
+.tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.tray figure {
+  position: relative;
+  margin: 0;
+  width: 4.8rem;
+  height: 4.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-raise);
+}
+.tray img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.tray figure.busy img { opacity: 0.4; }
+.tray figure.failed { border-color: var(--danger); }
+
+.tray button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  background: #000000b3;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Dragging text out of a message needs the message text to be selectable and
+   draggable, which is the default -- but a stray user-select rule anywhere
+   above it would silently kill the gesture, so it is stated here. */
+.text, .text * { user-select: text; -webkit-user-drag: element; }
+
+.composer.dropping {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* The whole message area is the drop target, not a small well: dragging a
+   screen grab at a 5-rem box is a needless test of aim. */
+.messages.dropping {
+  outline: 2px dashed var(--accent);
+  outline-offset: -8px;
+  background: var(--accent-soft);
+}
+
+.shots { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+
+.shots a {
+  display: block;
+  max-width: min(26rem, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  line-height: 0;
+}
+.shots img { max-width: 100%; height: auto; display: block; }
+.shots a:hover { border-color: var(--accent); }
 
 .hint { font-size: 0.8rem; color: var(--text-faint); }
 .hint.err { color: var(--danger); }

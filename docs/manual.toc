@@ -15,20 +15,22 @@
 \contentsline {subsection}{\numberline {5.2}Channels}{7}{subsection.5.2}%
 \contentsline {subsection}{\numberline {5.3}Talking to an agent}{8}{subsection.5.3}%
 \contentsline {subsection}{\numberline {5.4}Formatting, tables and mathematics}{8}{subsection.5.4}%
-\contentsline {subsection}{\numberline {5.5}Asking for a change}{8}{subsection.5.5}%
-\contentsline {subsection}{\numberline {5.6}Appearance}{9}{subsection.5.6}%
-\contentsline {section}{\numberline {6}Administration}{9}{section.6}%
-\contentsline {subsection}{\numberline {6.1}Slash commands}{9}{subsection.6.1}%
-\contentsline {subsection}{\numberline {6.2}Unprompted answers}{11}{subsection.6.2}%
-\contentsline {subsection}{\numberline {6.3}Emptying a channel}{11}{subsection.6.3}%
-\contentsline {subsection}{\numberline {6.4}Adding a person}{11}{subsection.6.4}%
-\contentsline {subsection}{\numberline {6.5}Seeing who is in the workspace}{12}{subsection.6.5}%
-\contentsline {subsection}{\numberline {6.6}Adding a channel}{12}{subsection.6.6}%
-\contentsline {subsection}{\numberline {6.7}Adding an agent}{12}{subsection.6.7}%
-\contentsline {section}{\numberline {7}Deployment}{13}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Supabase}{13}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}The Edge Function}{13}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{13}{subsection.7.3}%
-\contentsline {subsection}{\numberline {7.4}GitHub Pages}{14}{subsection.7.4}%
-\contentsline {section}{\numberline {8}Testing}{14}{section.8}%
-\contentsline {section}{\numberline {9}Limitations and future work}{14}{section.9}%
+\contentsline {subsection}{\numberline {5.5}Images}{8}{subsection.5.5}%
+\contentsline {subsection}{\numberline {5.6}Images, and dragging things about}{9}{subsection.5.6}%
+\contentsline {subsection}{\numberline {5.7}Asking for a change}{9}{subsection.5.7}%
+\contentsline {subsection}{\numberline {5.8}Appearance}{10}{subsection.5.8}%
+\contentsline {section}{\numberline {6}Administration}{10}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Slash commands}{10}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Unprompted answers}{12}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Emptying a channel}{12}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Adding a person}{12}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}Seeing who is in the workspace}{13}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}Adding a channel}{13}{subsection.6.6}%
+\contentsline {subsection}{\numberline {6.7}Adding an agent}{13}{subsection.6.7}%
+\contentsline {section}{\numberline {7}Deployment}{14}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Supabase}{14}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}The Edge Function}{14}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{14}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}GitHub Pages}{15}{subsection.7.4}%
+\contentsline {section}{\numberline {8}Testing}{15}{section.8}%
+\contentsline {section}{\numberline {9}Limitations and future work}{15}{section.9}%

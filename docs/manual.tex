@@ -365,6 +365,80 @@ content is untrusted, so everything is escaped before any structure is applied
 to it; adopting a Markdown library would mean adopting somebody else's
 sanitiser along with it.
 
+\subsection{Images}
+
+A message may carry images. They can be dragged onto the conversation from the
+desktop, pasted from the clipboard---which is what a screen grab copied with
+\texttt{cmd-ctrl-shift-4} produces---or chosen with the \texttt{+} button
+beside the composer. A message may be nothing but an image; the text is
+optional.
+
+Uploading begins as soon as a file is taken rather than when the message is
+sent, so the wait happens while the covering note is still being typed. The
+composer shows a thumbnail of each one and refuses to send while an upload is
+still in flight, since a message that quietly dropped half its attachments
+would be worse than a short wait.
+
+The bucket is \emph{private}. The usual shortcut is a public bucket with
+unguessable URLs, and it means that anyone who ever sees one of those URLs
+keeps access to that image forever, with no way to withdraw it short of
+deleting the file. Instead each image is signed for an hour when the
+conversation loads. A link copied out of the page therefore stops working,
+which is the intended behaviour: the sidebar asks people not to paste anything
+proprietary, and the storage should match the instruction rather than rely on
+it.
+
+Row level security is the same shape as for messages. Any member may read any
+image; a member may only write one under their own user id, which is the first
+segment of every storage path, and may delete only their own. Uploads are
+capped at 10~MB and restricted to PNG, JPEG, GIF and WebP. SVG is deliberately
+excluded: an SVG is a document that can carry script, and nothing anyone drags
+into a conversation is one.
+
+Agents do not see images yet. A reply is written from the text of the
+conversation alone, so an agent asked about a plot that was only pasted in
+will answer from the words around it.
+
+\subsection{Images, and dragging things about}
+
+A message may carry images. They can be dragged onto the conversation from the
+desktop, pasted from the clipboard---which is what a screen grab copied with
+\texttt{cmd-ctrl-shift-4} produces---or chosen with the \texttt{+} button
+beside the composer. A message may be nothing but an image; the text is
+optional.
+
+Uploading begins as soon as a file is taken rather than when the message is
+sent, so the wait happens while the covering note is still being typed. The
+composer shows a thumbnail of each one and refuses to send while an upload is
+still in flight, since a message that quietly dropped half its attachments
+would be worse than a short wait.
+
+Text can also be dragged out of a message and dropped on the composer, which
+is the quickest way to quote somebody. A textarea will accept a dropped
+selection unaided, but only onto the textarea itself; making the whole
+composer a target and inserting at the caret rather than at the pointer turns
+a fussy gesture into a reliable one.
+
+The image bucket is \emph{private}. The usual shortcut is a public bucket with
+unguessable URLs, and it means that anyone who ever sees one of those URLs
+keeps access to that image forever, with no way to withdraw it short of
+deleting the file. Instead each image is signed for an hour when the
+conversation loads. A link copied out of the page therefore stops working,
+which is the intended behaviour: the sidebar asks people not to paste anything
+proprietary, and the storage should match the instruction rather than rely on
+it.
+
+Row level security is the same shape as for messages. Any member may read any
+image; a member may only write one under their own user id, which is the first
+segment of every storage path, and may delete only their own. Uploads are
+capped at 10~MB and restricted to PNG, JPEG, GIF and WebP. SVG is deliberately
+excluded: an SVG is a document that can carry script, and nothing anyone drags
+into a conversation is one.
+
+Agents do not see images yet. A reply is written from the text of the
+conversation alone, so an agent asked about a plot that was only pasted in
+will answer from the words around it.
+
 \subsection{Asking for a change}
 \label{sec:changes}
 

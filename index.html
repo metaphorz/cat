@@ -141,8 +141,12 @@
 
     <form id="composer" class="composer">
       <div id="palette" class="palette" role="listbox" aria-label="Commands" hidden></div>
+      <div id="tray" class="tray" hidden></div>
       <textarea id="input" rows="1" placeholder="Message" autocomplete="off"></textarea>
       <div class="composer-foot">
+        <button id="attach-btn" type="button" class="icon-btn" title="Attach an image"
+                aria-label="Attach an image">&#43;</button>
+        <input id="attach" type="file" accept="image/*" multiple hidden>
         <span id="hint" class="hint"></span>
         <button id="send" type="submit">Send</button>
       </div>
