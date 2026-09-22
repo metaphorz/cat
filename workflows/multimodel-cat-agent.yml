@@ -42,7 +42,12 @@ concurrency:
 jobs:
   change:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 30 was too tight: request 2 was killed at 30m00s with its work finished
+    # but uncommitted, so the run produced nothing at all -- no branch, no PR,
+    # and no report back. A timeout that fires just before the commit step is
+    # the worst of both, having spent the money and kept none of the result.
+    # Note that this repository is private, so these minutes are metered.
+    timeout-minutes: 60
 
     env:
       REQUEST_ID: ${{ github.event.client_payload.request_id }}
@@ -88,6 +93,12 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Make the change
+        id: agent
+        # Deliberately shorter than the job's own limit. If the agent runs long
+        # it is killed here, leaving the job alive to report back -- which is
+        # what did not happen for request 2, and why it looked like silence
+        # rather than a timeout.
+        timeout-minutes: 45
         env:
           ANTHROPIC_BASE_URL: https://openrouter.ai/api
           ANTHROPIC_AUTH_TOKEN: ${{ secrets.OPENROUTER_API_KEY }}
@@ -179,6 +190,9 @@ jobs:
           elif [ -n "${{ steps.pr.outputs.url }}" ]; then
             STATUS=opened
             DETAIL=""
+          elif [ "${{ steps.agent.outcome }}" = "failure" ]; then
+            STATUS=failed
+            DETAIL="The agent ran out of time (45 minutes) before it finished, so nothing was committed. Asking for a smaller change is usually the fix. See $RUN_URL"
           else
             STATUS=failed
             DETAIL="The run did not complete. See $RUN_URL"
