@@ -124,7 +124,65 @@ async function openRouterModels(): Promise<ORModel[]> {
   if (!res.ok) throw new Error(`OpenRouter returned ${res.status}.`);
 
   const body = await res.json() as { data: ORModel[] };
-  return (body.data ?? []).filter((m) => (m.supported_parameters ?? []).includes("tools"));
+  return (body.data ?? [])
+    .filter((m) => (m.supported_parameters ?? []).includes("tools"))
+    // OpenRouter lists a :batch twin of most models at half price. They are
+    // asynchronous, so a chat reply cannot wait on one -- the discount is for
+    // work collected later. Offering them here would only invite a switch
+    // that looks cheap and then never answers.
+    .filter((m) => !m.id.endsWith(":batch"))
+    // Floating aliases: real, but they change under you. A stored default
+    // should name the model it means.
+    .filter((m) => !m.id.startsWith("~"))
+    .filter((m) => !NON_CHAT.some((s) => m.id.includes(s)));
+}
+
+// Variants that are not a chat model at all, whatever else they support.
+const NON_CHAT = ["-image", "-audio", "-tts", "-embed", "-search", "-realtime", "-customtools"];
+
+// Version comparison on the digits in the name: 5.3 beats 5.1, and 4.5 beats
+// 4. Compared position by position rather than as a decimal, so 3.10 would
+// sort above 3.9 as intended.
+function version(id: string): number[] {
+  return ((id.split("/")[1] ?? id).match(/\d+/g) ?? []).map(Number);
+}
+
+function newer(a: string, b: string): boolean {
+  const x = version(a), y = version(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const p = x[i] ?? -1, q = y[i] ?? -1;
+    if (p !== q) return p > q;
+  }
+  return false;
+}
+
+// The model line a name belongs to, with version and preview status removed:
+// claude-opus-5 and claude-opus-4.1 are one family, and so are
+// gemini-3.1-pro-preview and gemini-2.5-pro.
+function family(id: string): string {
+  return id
+    .replace(/-preview/g, "")
+    .replace(/[\d.]+/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/-$/, "");
+}
+
+function outPrice(m: ORModel): number {
+  return Number(m.pricing?.completion ?? 0);
+}
+
+// What a vendor is actually offering, rather than everything it has ever
+// shipped. One model per family -- the newest -- ranked by output price,
+// which is the closest thing to a capability ordering the catalogue gives us:
+// it puts Opus above Sonnet above Haiku without hardcoding that Opus exists.
+function shortlist(models: ORModel[], cap = 6): ORModel[] {
+  const best = new Map<string, ORModel>();
+  for (const m of models) {
+    const k = family(m.id);
+    const cur = best.get(k);
+    if (!cur || newer(m.id, cur.id)) best.set(k, m);
+  }
+  return [...best.values()].sort((a, b) => outPrice(b) - outPrice(a)).slice(0, cap);
 }
 
 function perMillion(raw: string | undefined): string {
@@ -143,13 +201,21 @@ function modelRows(models: ORModel[]): string {
     .join("\n");
 }
 
-async function modelCommand(admin: SupabaseClient, args: string[]): Promise<Response> {
+async function modelCommand(
+  admin: SupabaseClient,
+  rawArgs: string[],
+): Promise<Response> {
   const { data: agents } = await admin
     .from("agents")
     .select("slug, display_name, provider, model, enabled")
     .order("slug");
 
   const known = new Set((agents ?? []).map((a) => a.slug as string));
+
+  // A trailing "all" opts out of the shortlist. Stripped before anything else
+  // looks at the arguments, so it can never be mistaken for a model to set.
+  const showAll = rawArgs[rawArgs.length - 1]?.toLowerCase() === "all";
+  const args = showAll ? rawArgs.slice(0, -1) : rawArgs;
 
   // `/model` on its own: what is each agent running right now.
   if (args.length === 0) {
@@ -202,20 +268,30 @@ async function modelCommand(admin: SupabaseClient, args: string[]): Promise<Resp
     );
   }
 
-  // Anything else is a search term.
+  // Anything else is a search term. `/model claude` is deliberately not an
+  // error even though `claude` is also an agent: it reads naturally as "what
+  // could @claude run?", so it answers both -- what that agent is on now,
+  // then what it could be moved to.
   const term = args.join(" ").toLowerCase();
   const models = await openRouterModels();
-  const hits = models
+  const all = models
     .filter((m) => m.id.toLowerCase().includes(term))
-    .sort((a, b) => a.id.localeCompare(b.id))
-    .slice(0, 25);
+    .sort((a, b) => a.id.localeCompare(b.id));
 
-  if (!hits.length) return ok(`No tool-capable model matches \`${term}\`.`);
+  if (!all.length) return ok(`No tool-capable model matches \`${term}\`.`);
+
+  const hits = showAll ? all.slice(0, 40) : shortlist(all);
+  const agent = (agents ?? []).find((a) => a.slug === term);
 
   return ok(
-    `**${hits.length} match${hits.length === 1 ? "" : "es"} for \`${term}\`**\n\n` +
-      "| model | ctx | in $/M | out $/M |\n|---|---|---|---|\n" + modelRows(hits) +
-      "\n\n`/model <agent> <model-id>` to switch one.",
+    (agent ? `**@${agent.slug}** is on \`${agent.model}\`.\n\n` : "") +
+      (showAll
+        ? `**Every tool-capable model matching \`${term}\`** (${all.length})`
+        : `**Current line for \`${term}\`** -- newest of each family, ` +
+          `best first, out of ${all.length}`) +
+      "\n\n| model | ctx | in $/M | out $/M |\n|---|---|---|---|\n" + modelRows(hits) +
+      `\n\n\`/model ${agent?.slug ?? "<agent>"} <model-id>\` to switch` +
+      (agent ? "" : " one") + (showAll ? "." : `, \`/model ${term} all\` for the rest.`),
   );
 }
 

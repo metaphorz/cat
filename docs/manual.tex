@@ -429,9 +429,11 @@ than by the absence of a menu.
 \toprule
 command & what it does\\
 \midrule
-\texttt{/model} & Lists what each agent is running. With a search term, lists
-matching models with context length and price. With an agent and a model
-identifier, switches that agent's default.\\
+\texttt{/model} & On its own, lists what each agent is running. With a search
+term, a shortlist of what that vendor currently offers---and since an agent
+name is also a search term, \texttt{/model claude} answers both readings: what
+\texttt{@claude} is on now, and what it could be moved to. With an agent and a
+model identifier, switches that agent's default.\\
 \texttt{/retry} & Re-runs your last question to an agent on a different model,
 leaving the stored default alone.\\
 \texttt{/status} & Message, token and cache counts by channel, person and
@@ -458,7 +460,19 @@ a particular answer is simply taking too long. Both refuse any model that
 OpenRouter reports cannot use tools---roughly one in six of them---because the
 agent reads the repository through tool calls, and an agent that has silently
 lost that ability looks like a model that has become vague rather than one
-that cannot open a file.
+that cannot open a file. OpenRouter's \texttt{:batch} variants are hidden for
+a similar reason: they are half price and asynchronous, so a switch to one
+would look like a bargain and then never answer.
+
+What \texttt{/model claude} returns is a shortlist rather than the catalogue:
+OpenRouter carries fourteen tool-capable Anthropic models, most of them older
+versions of four lines. The command keeps the newest of each family and ranks
+them by output price, which is the nearest thing to a capability ordering the
+catalogue offers---it puts Opus above Sonnet above Haiku without the code
+having to know that those names exist, and it will go on doing so as the
+version numbers move. Six at most, which in practice today means four for
+Anthropic and three each for Google and the Codex line. \texttt{/model claude
+all} gives the unabridged list for the rare case that matters.
 
 \subsection{Adding a person}
 

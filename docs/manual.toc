@@ -21,12 +21,12 @@
 \contentsline {subsection}{\numberline {6.1}Slash commands}{9}{subsection.6.1}%
 \contentsline {subsection}{\numberline {6.2}Adding a person}{10}{subsection.6.2}%
 \contentsline {subsection}{\numberline {6.3}Seeing who is in the workspace}{10}{subsection.6.3}%
-\contentsline {subsection}{\numberline {6.4}Adding a channel}{10}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.4}Adding a channel}{11}{subsection.6.4}%
 \contentsline {subsection}{\numberline {6.5}Adding an agent}{11}{subsection.6.5}%
 \contentsline {section}{\numberline {7}Deployment}{11}{section.7}%
 \contentsline {subsection}{\numberline {7.1}Supabase}{11}{subsection.7.1}%
 \contentsline {subsection}{\numberline {7.2}The Edge Function}{11}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{11}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.3}Enabling pull requests for a repository}{12}{subsection.7.3}%
 \contentsline {subsection}{\numberline {7.4}GitHub Pages}{12}{subsection.7.4}%
 \contentsline {section}{\numberline {8}Testing}{12}{section.8}%
-\contentsline {section}{\numberline {9}Limitations and future work}{12}{section.9}%
+\contentsline {section}{\numberline {9}Limitations and future work}{13}{section.9}%
