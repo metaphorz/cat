@@ -130,7 +130,16 @@ jobs:
       - name: Commit to a branch and open the pull request
         id: pr
         env:
-          GH_TOKEN: ${{ github.token }}
+          # Not github.token. GitHub refuses to let the Actions token open a
+          # pull request unless the repository opts in, and a PR it opened
+          # would not trigger the pull_request workflows anyway -- so the
+          # agent's code, the one kind most worth reviewing, would arrive
+          # unreviewed. CAT_PR_TOKEN is a fine-grained PAT scoped to this
+          # repository with Contents and Pull requests write, and it expires:
+          # around 2026-12-13, after which this step fails until it is
+          # regenerated. The branch still pushes, so nothing is lost but the
+          # PR itself.
+          GH_TOKEN: ${{ secrets.CAT_PR_TOKEN }}
         run: |
           set -e
           BRANCH="cat/request-${REQUEST_ID}"
