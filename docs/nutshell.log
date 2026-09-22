@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  22 SEP 2026 12:51
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  22 SEP 2026 13:06
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -370,11 +370,11 @@ Package pdftex.def Info: figures/interface.png  used on input line 95.
 
 [2 <./figures/interface.png>]
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <10.95> on input line 162.
+(Font)              <10.95> on input line 167.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <8> on input line 162.
+(Font)              <8> on input line 167.
 LaTeX Font Info:    External font `cmex10' loaded for size
-(Font)              <6> on input line 162.
+(Font)              <6> on input line 167.
 
 
 [3] (./nutshell.aux)
@@ -400,7 +400,7 @@ usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></us
 r/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></usr/l
 ocal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/lo
 cal/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb>
-Output written on nutshell.pdf (3 pages, 469213 bytes).
+Output written on nutshell.pdf (3 pages, 469467 bytes).
 PDF statistics:
  94 PDF objects out of 1000 (max. 8388607)
  71 compressed objects within 1 object stream

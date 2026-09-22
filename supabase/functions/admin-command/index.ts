@@ -87,6 +87,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return await resolveCommand(args);
       case "answer":
         return await answerCommand(admin, args, member, payload.channel_id ?? "");
+      case "clear":
+        return await clearCommand(admin, args, payload.channel_id ?? "");
+      case "verbose":
+        return await verboseCommand(admin, args, payload.channel_id ?? "");
       case "status":
         return await statusCommand(admin);
       case "who":
@@ -322,6 +326,150 @@ async function resolveCommand(args: string[]): Promise<Response> {
       "| model | ctx | in $/M | out $/M |\n|---|---|---|---|\n" +
       modelRows(hits.slice(0, 15)),
   );
+}
+
+// ---------------------------------------------------------------- /verbose
+
+// Asks the agents for shorter answers in this channel. An instruction rather
+// than a token cap: a cap would cut a reply off mid-sentence, and a truncated
+// answer tells you nothing about whether the rest of it mattered.
+async function verboseCommand(
+  admin: SupabaseClient,
+  args: string[],
+  channelId: string,
+): Promise<Response> {
+  if (!channelId) return json({ error: "No channel." }, 400);
+
+  const { data: channel } = await admin
+    .from("channels")
+    .select("id, slug, verbose_replies")
+    .eq("id", channelId)
+    .maybeSingle();
+
+  if (!channel) return json({ error: "Unknown channel." }, 404);
+
+  const want = (args[0] ?? "").toLowerCase();
+
+  if (!want) {
+    return ok(
+      `Replies in #${channel.slug} are **${channel.verbose_replies ? "full length" : "short"}**.\n\n` +
+        "`/verbose off` for a few sentences an answer, `/verbose on` for the full treatment.",
+    );
+  }
+
+  if (want !== "on" && want !== "off") {
+    return ok("Usage: `/verbose`, `/verbose on`, `/verbose off`.");
+  }
+
+  const { error } = await admin
+    .from("channels")
+    .update({ verbose_replies: want === "on" })
+    .eq("id", channelId);
+
+  if (error) throw new Error(error.message);
+
+  return ok(
+    want === "on"
+      ? `Full-length replies in #${channel.slug}. Agents will structure a long answer where it has parts.`
+      : `Short replies in #${channel.slug}. Agents are asked for a few sentences, ` +
+        `no headings or tables, and to offer the long version rather than deliver it unasked. ` +
+        `It steers them rather than truncating them, so expect the odd long answer to a ` +
+        `question that genuinely needs one.`,
+  );
+}
+
+// ---------------------------------------------------------------- /clear
+
+// Empties a channel without destroying it: the channel row, its repository
+// binding and its specialty mapping all stay, and it can be talked in again a
+// second later. That is a different act from archiving, which removes the
+// channel itself.
+//
+// Two steps, always. The first hands back the transcript and changes nothing;
+// the second deletes, and only up to the message the transcript ended at --
+// so anything posted while the decision was being made survives rather than
+// being silently swept up with the rest.
+async function clearCommand(
+  admin: SupabaseClient,
+  args: string[],
+  channelId: string,
+): Promise<Response> {
+  if (!channelId) return json({ error: "No channel." }, 400);
+
+  const { data: channel } = await admin
+    .from("channels")
+    .select("id, slug")
+    .eq("id", channelId)
+    .maybeSingle();
+
+  if (!channel) return json({ error: "Unknown channel." }, 404);
+
+  if ((args[0] ?? "").toLowerCase() === "confirm") {
+    const upTo = Number(args[1] ?? "");
+    if (!Number.isFinite(upTo)) {
+      return ok("Run `/clear` first -- it gives you the transcript, and only then will this work.");
+    }
+
+    const { data: gone, error } = await admin
+      .from("messages")
+      .delete()
+      .eq("channel_id", channelId)
+      .lte("id", upTo)
+      .select("id");
+
+    if (error) throw new Error(error.message);
+
+    const { count: left } = await admin
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("channel_id", channelId);
+
+    return ok(
+      `**#${channel.slug} cleared.** ${gone?.length ?? 0} messages deleted` +
+        (left ? `, ${left} posted since the transcript and kept` : "") +
+        `.\n\nThe channel, its repository binding and its code areas are untouched.`,
+    );
+  }
+
+  const { data: messages } = await admin
+    .from("messages")
+    .select("id, body, status, agent_slug, created_at, members(display_name, username)")
+    .eq("channel_id", channelId)
+    .order("created_at");
+
+  if (!messages?.length) return ok(`#${channel.slug} is already empty.`);
+
+  const { data: agents } = await admin.from("agents").select("slug, display_name");
+  const agentName = new Map((agents ?? []).map((a) => [a.slug as string, a.display_name as string]));
+
+  // deno-lint-ignore no-explicit-any
+  const lines = (messages as any[]).map((m) => {
+    const who = m.agent_slug
+      ? (agentName.get(m.agent_slug) ?? m.agent_slug) + " (agent)"
+      : m.members?.display_name ?? "someone who has since left";
+    const when = String(m.created_at).slice(0, 16).replace("T", " ");
+    return `### ${who} -- ${when}\n\n${m.body || "_(empty)_"}\n`;
+  });
+
+  const upTo = messages[messages.length - 1].id;
+  const transcript =
+    `# #${channel.slug}\n\n` +
+    `${messages.length} messages, ${String(messages[0].created_at).slice(0, 10)} to ` +
+    `${String(messages[messages.length - 1].created_at).slice(0, 10)}. ` +
+    `Saved before clearing on ${new Date().toISOString().slice(0, 10)}.\n\n---\n\n` +
+    lines.join("\n");
+
+  return json({
+    text: `**${messages.length} messages** in #${channel.slug}, ` +
+      `${String(messages[0].created_at).slice(0, 10)} to ` +
+      `${String(messages[messages.length - 1].created_at).slice(0, 10)}. ` +
+      `The transcript has been saved to your downloads.\n\n` +
+      `Nothing has been deleted. Check the file is readable, then run ` +
+      `\`/clear confirm\` to empty the channel. Deleted messages cannot be ` +
+      `recovered from Supabase.`,
+    download: { name: `cat-${channel.slug}-${new Date().toISOString().slice(0, 10)}.md`, body: transcript },
+    clear_up_to: upTo,
+  });
 }
 
 // ---------------------------------------------------------------- /answer

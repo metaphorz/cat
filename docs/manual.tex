@@ -438,6 +438,10 @@ model identifier, switches that agent's default.\\
 leaving the stored default alone.\\
 \texttt{/answer} & Turns unprompted answering on or off for the current
 channel. Off by default. See \S\ref{sec:answer}.\\
+\texttt{/verbose} & \texttt{off} asks the agents for a few sentences rather
+than an essay, in this channel. On by default.\\
+\texttt{/clear} & Saves the channel's transcript to your downloads, then
+empties the channel on a second confirming command. See \S\ref{sec:clear}.\\
 \texttt{/status} & Message, token and cache counts by channel, person and
 model.\\
 \texttt{/who} & Everyone on the allowlist, and which of them have yet to sign
@@ -514,6 +518,30 @@ came from CAT. The secret is not what grants the privilege, though: the
 function independently checks that the channel really does have the setting
 on, and for that agent, so a leaked secret could not summon an agent into a
 channel where the feature is switched off.
+
+\subsection{Emptying a channel}
+\label{sec:clear}
+
+\texttt{/clear} empties a channel without destroying it. The channel row, its
+repository binding and its specialty mapping all survive; only the messages
+go, and the channel can be talked in again a second later. That is a different
+act from archiving, which removes the channel itself.
+
+It always takes two commands. The first saves the transcript to your browser's
+downloads as a Markdown file and deletes nothing at all. The second,
+\texttt{/clear confirm}, does the deletion. The reason for the pause is that
+deleted messages cannot be recovered from Supabase---row level security lets a
+member delete only their own messages, so this runs with the service role, and
+what it removes is gone.
+
+The transcript is handed to the browser rather than stored anywhere. Nothing
+is kept server-side and nothing is committed to GitHub, which matters because
+the repository is public and a channel's contents usually are not.
+
+One detail that is easy to miss and worth knowing: the deletion is bounded by
+the last message the transcript contained. If somebody posts while you are
+deciding, their message is not swept up with the rest---it survives, and
+\texttt{/clear} tells you how many were kept.
 
 \subsection{Adding a person}
 

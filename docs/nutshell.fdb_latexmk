@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1790095908.14617 "nutshell.tex" "nutshell.pdf" "nutshell" 1790095908.73966 0
+["pdflatex"] 1790096814.15037 "nutshell.tex" "nutshell.pdf" "nutshell" 1790096814.73965 0
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm" 1136768653 1328 c834bbb027764024c09d3d2bf908b5f0 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmbx12.tfm" 1136768653 1324 c910af8c371558dc20f2d7822f66fe64 ""
@@ -79,9 +79,9 @@
   "/usr/local/texlive/2025/texmf.cnf" 1741450484 577 418a7058ec8e006d8704f60ecd22c938 ""
   "figures/interface.png" 1789480134.5322 642400 1db0c06cbd4776f87c2ef73be65cc9db ""
   "figures/mark.png" 1789391999.74498 12899 0b181894211de754ab957937746ea729 ""
-  "nutshell.aux" 1790095908.71175 929 3409fc450309556c3e4c986a626d346b "pdflatex"
-  "nutshell.out" 1790095908.7122 774 9269c0e0274850de1760d15c7e403a96 "pdflatex"
-  "nutshell.tex" 1790095901.51412 8093 5149d2aa8811878fba2f5816c399935a ""
+  "nutshell.aux" 1790096814.71221 929 3409fc450309556c3e4c986a626d346b "pdflatex"
+  "nutshell.out" 1790096814.71245 774 9269c0e0274850de1760d15c7e403a96 "pdflatex"
+  "nutshell.tex" 1790096806.82045 8407 1e5483cc8a7be5f040ca406db566f699 ""
   (generated)
   "nutshell.aux"
   "nutshell.log"

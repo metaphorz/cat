@@ -163,7 +163,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const { data: channel } = await admin
     .from("channels")
     .select(
-      "id, slug, name, purpose, github_owner, github_repo, github_branch, allow_writes, auto_answer_agent",
+      "id, slug, name, purpose, github_owner, github_repo, github_branch, allow_writes, auto_answer_agent, verbose_replies",
     )
     .eq("id", channel_id)
     .maybeSingle();
@@ -248,6 +248,7 @@ type Channel = {
   github_repo: string | null;
   github_branch: string;
   allow_writes: boolean;
+  verbose_replies: boolean;
 };
 
 type Person = {
@@ -316,7 +317,9 @@ async function respond(
           "",
           "The chat window renders Markdown, so use it where it carries meaning: fenced code blocks for code, tables for comparisons, headings and lists to structure a long answer, and LaTeX for mathematics -- $...$ inline and $$...$$ for displayed equations. This group works on wind and loss modelling, so write the physics and statistics as notation rather than prose where notation is clearer.",
           "",
-          "Do not reach for structure that a sentence would carry better. Be direct and concrete, skip preamble and pleasantries, and let a few sentences be a few sentences; headings and tables are for answers that genuinely have parts.",
+          channel.verbose_replies
+            ? "Do not reach for structure that a sentence would carry better. Be direct and concrete, skip preamble and pleasantries, and let a few sentences be a few sentences; headings and tables are for answers that genuinely have parts."
+            : "Answer briefly: a few sentences, and rarely more than a short paragraph. No headings, no tables, no bulleted summaries, no restating the question before answering it. Give the answer and stop. If a full treatment is genuinely needed, say so in one line and let them ask for it rather than delivering it unasked.",
     ].filter((line, i, all) => line !== "" || all[i - 1] !== "").join("\n");
 
     const userTurn = [
