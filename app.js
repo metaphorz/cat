@@ -986,7 +986,19 @@ function renderTray() {
 // Uploads start the moment a file is chosen rather than on send, so the wait
 // happens while the message is still being typed.
 async function takeFiles(files) {
-  const images = [...files].filter((f) => f.type.startsWith("image/"));
+  const all = [...files];
+  const images = all.filter((f) => f.type.startsWith("image/"));
+  const rejected = all.filter((f) => !f.type.startsWith("image/"));
+
+  // Say so. Dropping a spreadsheet and having nothing at all happen reads as
+  // a broken page rather than as a limit.
+  if (rejected.length) {
+    el.hint.className = "hint err";
+    el.hint.textContent = rejected.length === 1
+      ? `${rejected[0].name} is not an image -- only images can be attached.`
+      : `${rejected.length} files were not images and were not attached.`;
+  }
+
   if (!images.length) return;
 
   for (const file of images) {
