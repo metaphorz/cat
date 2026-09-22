@@ -451,6 +451,20 @@ conversation alone, so an agent asked about a plot that was only pasted in
 will answer from the words around it.
 
 \subsection{Asking for a change}
+
+\textbf{This is switched off as of 22 September 2026.} It worked---an agent
+wrote 3315 lines that passed review and were merged---but it is the expensive
+way to get something obtainable for nothing: the coding agent and the chat
+agents bill the same OpenRouter key, and an agentic run costs on the order of
+ten dollars against a few cents for a reply. Code changes are now made
+directly in the repository instead. What follows describes the mechanism as
+built, and remains accurate for anyone re-enabling it.
+
+Three independent switches hold it off, and all three must be reversed:
+\texttt{channels.allow\_writes}, \texttt{members.can\_request\_changes}, and
+the workflow's own enabled state in GitHub. The first two are what
+\texttt{mayWrite} is computed from, so with either of them false the agent is
+never offered the tool at all.
 \label{sec:changes}
 
 On a channel whose repository allows writes, someone permitted to request
