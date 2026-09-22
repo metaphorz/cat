@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  22 SEP 2026 13:06
+This is pdfTeX, Version 3.141592653-2.6-1.40.27 (TeX Live 2025) (preloaded format=pdflatex 2025.3.8)  22 SEP 2026 13:08
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -461,7 +461,7 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 <figures/pr-flow.png, id=240, 1209.51875pt x 1799.72375pt>
 File: figures/pr-flow.png Graphic file (type png)
 <use figures/pr-flow.png>
-Package pdftex.def Info: figures/pr-flow.png  used on input line 374.
+Package pdftex.def Info: figures/pr-flow.png  used on input line 388.
 (pdftex.def)             Requested size: 310.04002pt x 461.32637pt.
 
 
@@ -475,15 +475,15 @@ LaTeX Warning: `h' float specifier changed to `ht'.
 
 [10]
 
-[11] (/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
+[11]
+
+[12] (/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
 File: lstlang1.sty 2024/09/23 1.10c listings language file
 )
 (/usr/local/texlive/2025/texmf-dist/tex/latex/listings/lstlang1.sty
 File: lstlang1.sty 2024/09/23 1.10c listings language file
 )
-
-[12]
-Overfull \hbox (129.7204pt too wide) in paragraph at lines 678--688
+Overfull \hbox (129.7204pt too wide) in paragraph at lines 692--702
 []\OT1/cmr/m/n/10.95 Second, in-stall \OT1/cmtt/m/n/10.95 workflows/multimodel-
 cat-agent.yml \OT1/cmr/m/n/10.95 into the tar-get repos-i-tory at \OT1/cmtt/m/n
 /10.95 .github/workflows/cat-agent.yml\OT1/cmr/m/n/10.95 ,
@@ -495,11 +495,13 @@ cat-agent.yml \OT1/cmr/m/n/10.95 into the tar-get repos-i-tory at \OT1/cmtt/m/n
 
 [14]
 
-[15 <./figures/agent-flow.png> <./figures/trust.png>]
+[15]
 
-[16 <./figures/schema.png> <./figures/signin.png (PNG copy)>]
+[16 <./figures/agent-flow.png> <./figures/trust.png>]
 
-[17 <./figures/pr-flow.png>] (./manual.aux)
+[17 <./figures/schema.png> <./figures/signin.png (PNG copy)>]
+
+[18 <./figures/pr-flow.png>] (./manual.aux)
  ***********
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
@@ -508,13 +510,13 @@ Package rerunfilecheck Info: File `manual.out' has not changed.
 (rerunfilecheck)             Checksum: 2E59E6E434FEDC297B451B54E6578767;5016.
  ) 
 Here is how much of TeX's memory you used:
- 11786 strings out of 473190
- 178199 string characters out of 5715801
- 901045 words of memory out of 5000000
+ 11787 strings out of 473190
+ 178206 string characters out of 5715801
+ 962488 words of memory out of 5000000
  34804 multiletter control sequences out of 15000+600000
  566143 words of font info for 61 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,8n,79p,708b,1399s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,8n,79p,708b,1997s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb
 ></usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb>
 </usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb>
@@ -528,10 +530,10 @@ l/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/local
 /texlive/2025/texmf-dist/fonts/type1/public/cm-super/sfbx1095.pfb></usr/local/t
 exlive/2025/texmf-dist/fonts/type1/public/cm-super/sfrm1095.pfb></usr/local/tex
 live/2025/texmf-dist/fonts/type1/public/cm-super/sftt1095.pfb>
-Output written on manual.pdf (17 pages, 1319427 bytes).
+Output written on manual.pdf (18 pages, 1320845 bytes).
 PDF statistics:
- 430 PDF objects out of 1000 (max. 8388607)
- 368 compressed objects within 4 object streams
- 119 named destinations out of 1000 (max. 500000)
+ 434 PDF objects out of 1000 (max. 8388607)
+ 371 compressed objects within 4 object streams
+ 120 named destinations out of 1000 (max. 500000)
  313 words of extra memory for PDF output out of 10000 (max. 10000000)
 

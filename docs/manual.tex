@@ -346,6 +346,20 @@ render. Mathematics is written in \LaTeX---\texttt{\$\ldots\$} inline and
 \texttt{\$\$\ldots\$\$} displayed---and typeset with KaTeX, so a wind field can
 be discussed in notation rather than in prose describing notation.
 
+Line breaks follow the Markdown rule rather than being taken literally: a
+single newline inside a paragraph is a space, and a break needs two trailing
+spaces or a blank line. This is worth knowing because of where text often
+comes from. Copying out of a terminal turns every \emph{visual} line into a
+real newline, so a paragraph arrives pre-wrapped at whatever width that window
+happened to be; taken literally, it would reproduce somebody else's ragged
+right edge in the middle of the conversation. Reflowing it is both the
+standard behaviour and the useful one.
+
+Dollar signs are treated as mathematics only when what follows is neither a
+digit nor a space. Two prices on one line---\texttt{\$5.00 in, \$25.00
+out}---would otherwise pair their delimiters and be typeset as an equation,
+which is exactly what happened the first time a command reported a cost.
+
 The renderer is written by hand rather than taken from a library. Message
 content is untrusted, so everything is escaped before any structure is applied
 to it; adopting a Markdown library would mean adopting somebody else's

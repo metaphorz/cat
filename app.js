@@ -653,7 +653,20 @@ function renderBlock(block) {
     return renderMixed(lines);
   }
 
-  return `<p>${lines.map(inline).join("<br>")}</p>`;
+  // A single newline inside a paragraph is a space, not a line break; two
+  // trailing spaces, or a trailing backslash, make it a break. That is the
+  // Markdown rule, and it matters more than it sounds: text copied out of a
+  // terminal arrives already wrapped at the terminal's width, and treating
+  // every one of those wraps as a break reproduced the ragged right edge of
+  // somebody's terminal in the middle of the conversation.
+  const parts = lines.map((line, i) => {
+    const hard = /(\s{2}|\\)$/.test(line);
+    const html = inline(hard ? line.replace(/(\s{2}|\\)$/, "") : line);
+    if (i === lines.length - 1) return html;
+    return html + (hard ? "<br>" : " ");
+  });
+
+  return `<p>${parts.join("")}</p>`;
 }
 
 // Agents frequently write a heading, then bullets, with no blank line between.
