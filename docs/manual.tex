@@ -544,8 +544,11 @@ fixed-width column reads worse than no change at all.
 
 Most of the administration below can also be done from the composer. Typing
 \texttt{/} opens a palette of commands; the arrow keys move through it and
-\textsc{enter} completes the one you want. The palette appears only for
-members whose \texttt{is\_admin} flag is set.
+\textsc{enter} completes the one you want. The two commands that are switches,
+\texttt{/answer} and \texttt{/verbose}, carry their current position for this
+channel next to the words they accept, so \texttt{on|off} says which of the
+two you are already on rather than only what may be typed. The palette appears
+only for members whose \texttt{is\_admin} flag is set.
 
 That last sentence describes the interface, not the protection. As everywhere
 else in CAT, hiding a control is cosmetic: the \texttt{admin-command} Edge

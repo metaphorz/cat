@@ -194,7 +194,12 @@ function teardown() {
 async function loadChannels() {
   const { data, error } = await supabase
     .from("channels")
-    .select("id, slug, name, purpose, github_owner, github_repo, github_branch")
+    .select(
+      "id, slug, name, purpose, github_owner, github_repo, github_branch, " +
+      // Not drawn anywhere in the sidebar -- the command palette shows them
+      // as the current position of /verbose and /answer.
+      "verbose_replies, auto_answer_agent",
+    )
     .order("position")
     .order("slug");
 
@@ -1265,9 +1270,21 @@ document.addEventListener("copy", (e) => {
 const COMMANDS = [
   { name: "model", args: "[agent] [model]", blurb: "list or switch the default model" },
   { name: "retry", args: "[model]", blurb: "rerun the last ask on another model" },
-  { name: "answer", args: "on|off [agent]", blurb: "answer this channel without @mentions" },
+  {
+    name: "answer",
+    args: "on|off [agent]",
+    blurb: "answer this channel without @mentions",
+    now: () => state.channel?.auto_answer_agent
+      ? `on, @${state.channel.auto_answer_agent}`
+      : "off",
+  },
   { name: "clear", args: "", blurb: "save the transcript and empty the channel" },
-  { name: "verbose", args: "on|off", blurb: "how long agent replies should be here" },
+  {
+    name: "verbose",
+    args: "on|off",
+    blurb: "how long agent replies should be here",
+    now: () => (state.channel?.verbose_replies ? "on" : "off"),
+  },
   { name: "status", args: "", blurb: "messages, tokens and channels" },
   { name: "who", args: "", blurb: "members, and who has yet to sign in" },
   { name: "cost", args: "", blurb: "OpenRouter credit remaining" },
@@ -1324,13 +1341,16 @@ function renderPalette() {
   if (state.paletteAt < 0 || state.paletteAt >= hits.length) state.paletteAt = 0;
 
   el.palette.innerHTML = hits
-    .map((c, i) =>
-      `<div class="palette-item" role="option" data-name="${c.name}" ` +
-      `aria-selected="${i === state.paletteAt}">` +
-      `<span class="palette-name">/${c.name}</span>` +
-      `<span class="palette-args">${escapeHtml(c.args)}</span>` +
-      `<span class="palette-blurb">${escapeHtml(c.blurb)}</span></div>`
-    )
+    .map((c, i) => {
+      // Only the switches have one, and only once a channel is open.
+      const now = state.channel ? c.now?.() : null;
+      return `<div class="palette-item" role="option" data-name="${c.name}" ` +
+        `aria-selected="${i === state.paletteAt}">` +
+        `<span class="palette-name">/${c.name}</span>` +
+        `<span class="palette-args">${escapeHtml(c.args)}</span>` +
+        (now ? `<span class="palette-now">${escapeHtml(now)}</span>` : "") +
+        `<span class="palette-blurb">${escapeHtml(c.blurb)}</span></div>`;
+    })
     .join("");
   el.palette.hidden = false;
 }
@@ -1458,6 +1478,30 @@ async function runCommand(raw) {
   // who the people list should contain.
   if (command === "model") await loadAgents();
   if (command === "invite") await loadPeople();
+  // /verbose and /answer move the switches the palette reports the position
+  // of, and the note they return is prose rather than a value to parse.
+  if (command === "verbose" || command === "answer") await refreshSettings();
+}
+
+// The current channel's two switch settings, read back from the row. Assigned
+// into the object rather than replacing it: the sidebar list holds the same
+// object as state.channel, and swapping one of them would leave the other
+// answering for a channel as it used to be.
+async function refreshSettings() {
+  const { data, error } = await supabase
+    .from("channels")
+    .select("verbose_replies, auto_answer_agent")
+    .eq("id", state.channel.id)
+    .maybeSingle();
+
+  // A stale reading is better than losing the ones already held: the note
+  // above has already said what changed.
+  if (error || !data) {
+    console.error("[cat] could not re-read channel settings:", error);
+    return;
+  }
+
+  Object.assign(state.channel, data);
 }
 
 // Rerun the last thing you asked an agent, on a different model, without

@@ -464,6 +464,20 @@ body {
 
 .palette-name { font-family: var(--mono); font-size: 0.867rem; color: var(--accent); }
 .palette-args { font-family: var(--mono); font-size: 0.8rem; color: var(--text-faint); }
+
+/* Where a switch is standing right now, next to the words it accepts. A
+   command like /verbose reads as a pair of choices otherwise, with no way to
+   tell which one you are already on without running it to find out. */
+.palette-now {
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 0.733rem;
+}
+
 .palette-blurb {
   margin-left: auto;
   font-size: 0.8rem;
