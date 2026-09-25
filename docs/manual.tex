@@ -88,11 +88,18 @@ cost, and who asked for it.}
 
 \subsection{What CAT is not}
 
-An agent can open a pull request when explicitly asked, on a channel whose
-repository permits it, by a person permitted to ask. It cannot merge one.
-Every change an agent makes arrives as a branch and a pull request for a human
-to review, and that review is the point rather than a formality---see
-Section~\ref{sec:changes}.
+CAT is for reading a codebase together, not for changing one. An agent here
+answers questions about the repository and has no way to write to it: no file
+it can edit, no branch it can push. Ask one for a change and it will describe
+the change concretely and say that a person has to make it.
+
+Code is changed in a local agent session instead---in an editor such as
+VS~Code, with the author watching the work as it happens and
+redirecting it---and this workspace is where the result is reported
+afterwards. The machinery
+for asking an agent in a channel to open a pull request was built and still
+exists, switched off since 22~September 2026; Section~\ref{sec:changes}
+describes it and what re-enabling it would take.
 
 There are no threads, reactions, file uploads, or message editing. Recreating
 Slack is not the goal; having somewhere to think about a codebase together is.
@@ -266,7 +273,9 @@ open: the brief, who asked, and how it ended---\texttt{dispatched},
 request URL once they exist. It is kept apart from \texttt{messages} because it
 has a lifecycle, and because it is the audit trail for everything the system
 has ever written to a repository. Every member can read it; only the service
-role writes it.
+role writes it. The path that fills it has been switched off since
+22~September 2026 (Section~\ref{sec:changes}), so it is now a closed record
+rather than a growing one.
 
 \subsection{Messages}
 
@@ -337,6 +346,12 @@ The agent is given the recent conversation, the roster with everyone's
 discipline, the specialty-to-path map for that channel, and the repository's
 overview document and source file listing. It is told who asked and what their
 discipline is.
+
+What you can ask for is an answer, not an edit. How something works, where a
+discipline should look first, what a file is for, whether an approach is sound:
+these are the normal case, and the agent has the repository in front of it.
+A request to change the code is answered with a description of the change and
+the observation that a person must make it---see Section~\ref{sec:changes}.
 
 \subsection{Formatting, tables and mathematics}
 
@@ -438,9 +453,12 @@ will answer from the words around it.
 wrote 3315 lines that passed review and were merged---but it is the expensive
 way to get something obtainable for nothing: the coding agent and the chat
 agents bill the same OpenRouter key, and an agentic run costs on the order of
-ten dollars against a few cents for a reply. Code changes are now made
-directly in the repository instead. What follows describes the mechanism as
-built, and remains accurate for anyone re-enabling it.
+ten dollars against a few cents for a reply. Code changes are made in a local
+agent session instead---an editor such as VS~Code, where the author watches the
+work happen, redirects it when it goes wrong, and can run the tests against a
+real environment---and land on the main branch from there. What follows
+describes the mechanism as built, and remains accurate for anyone re-enabling
+it.
 
 Three independent switches hold it off, and all three must be reversed:
 \texttt{channels.allow\_writes}, \texttt{members.can\_request\_changes}, and
@@ -832,15 +850,15 @@ checks that the composer offers the agent, not that a vendor answers.
 \section{Limitations and future work}
 
 \begin{itemize}
-  \item \textbf{An agent can open a pull request but cannot review one.} It
-    does not see CI results, reviewer comments, or whether the branch still
-    merges cleanly a week later. The pull request is where its involvement
-    ends.
-  \item \textbf{The conversation is an input to a process that writes code.}
-    On a writable channel, everything typed there may reach a job holding a
-    write credential. With a single person permitted to request changes this is
-    academic; it stops being academic the moment a second person is granted
-    that permission.
+  \item \textbf{The pull-request path ended at the pull request.} While it was
+    on, an agent could open one but never saw CI results, reviewer comments, or
+    whether the branch still merged cleanly a week later. Not seeing the work
+    through is part of why the change is cheaper to make in an editor.
+  \item \textbf{A writable channel makes the conversation an input to a
+    process that writes code.} Everything typed in one may reach a job holding
+    a write credential. With a single person permitted to request changes that
+    was academic; it would stop being academic the moment a second person were
+    granted the permission. All three switches are currently off.
   \item \textbf{Every member sees every channel.} Reasonable below twenty
     people; it would need per-channel membership beyond that.
   \item \textbf{Repository context is a file listing and an overview document,}
