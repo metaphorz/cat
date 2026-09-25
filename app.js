@@ -762,16 +762,42 @@ function renderTable(lines) {
     `<tbody>${body}</tbody></table></div>`;
 }
 
+// A link whose path ends in a picture is shown as a picture. There is no way
+// to ask a remote host what it is holding without fetching it, so the
+// extension is the only evidence available, and a guess that is wrong leaves
+// a broken image sitting in the conversation. SVG is left out for the reason
+// uploads exclude it: it is a document that can carry script.
+const IMAGE_URL = /\.(png|jpe?g|gif|webp|avif)(?:[?#]\S*)?$/i;
+
+// Remote, and staying remote -- unlike an attachment, nothing is copied into
+// the private bucket. The picture is fetched from wherever it lives every
+// time somebody reads the message, which is worth knowing twice over: the
+// host sees each reader, and the day the link dies the message loses it.
+function pictured(href, alt = "") {
+  return `<img class="link-img" src="${href}" alt="${alt}" loading="lazy">`;
+}
+
 // Inline marks. Operates on already-escaped text.
 function inline(s) {
   return s
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    // Markdown's own image, which is how an agent writes one. Before the link
+    // rule below, which would otherwise take the bracket pair and leave the
+    // exclamation mark stranded in front of it.
+    .replace(/!\[([^\]\n]*)\]\((https?:\/\/[^)\s]+)\)/g,
+      (_, alt, href) => pictured(href, alt))
+    // A link written as a link stays one, picture or not: the author chose to
+    // give it words rather than show it.
     .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    // A bare URL gets both -- the link, so it can be copied and followed, and
+    // the picture under it when that is what it points at.
     .replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,:;"')\]])/g,
-      '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+      (_, before, href) =>
+        `${before}<a href="${href}" target="_blank" rel="noopener">${href}</a>` +
+        (IMAGE_URL.test(href) ? pictured(href) : ""))
     .replace(/(^|\s)(@[a-z0-9_-]+)/gi, '$1<span class="mention">$2</span>');
 }
 
@@ -1194,6 +1220,10 @@ function toMarkdown(node) {
       const href = node.getAttribute?.("href");
       const text = kids();
       return href && href !== text ? `[${text}](${href})` : text;
+    }
+    case "img": {
+      const src = node.getAttribute?.("src") ?? "";
+      return src ? `![${node.getAttribute?.("alt") ?? ""}](${src})` : "";
     }
     case "li": return `- ${kids()}\n`;
     case "ul": case "ol": return kids() + "\n";

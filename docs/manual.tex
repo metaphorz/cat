@@ -424,6 +424,22 @@ composer shows a thumbnail of each one and refuses to send while an upload is
 still in flight, since a message that quietly dropped half its attachments
 would be worse than a short wait.
 
+A link is not an attachment, but a link to a picture is still shown as one.
+Any \texttt{http} or \texttt{https} URL in a message becomes a link, and if
+its path ends in \texttt{.png}, \texttt{.jpg}, \texttt{.gif},
+\texttt{.webp} or \texttt{.avif} the picture is drawn underneath it;
+Markdown's own \texttt{!{[}alt{]}(url)} draws the picture alone, which is how
+an agent writes one. The extension is the only evidence there is---asking the
+far end what it holds would mean fetching it---so a link dressed as something
+it is not simply fails to load. \texttt{.svg} is excluded for the reason
+uploads exclude it.
+
+Such an image stays where it lives. Nothing is copied into the bucket, so the
+host serving it sees every reader of the message, the picture disappears the
+day the link does, and the hour-long signing below does not apply to it. That
+is the trade for being able to point at something already on the web rather
+than re-uploading it.
+
 Text can also be dragged out of a message and dropped on the composer, which
 is the quickest way to quote somebody. A textarea will accept a dropped
 selection unaided, but only onto the textarea itself; making the whole

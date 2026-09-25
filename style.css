@@ -612,6 +612,18 @@ body {
 .shots img { max-width: 100%; height: auto; display: block; }
 .shots a:hover { border-color: var(--accent); }
 
+/* A picture linked in the text of a message, as opposed to one attached to
+   it. Held to the same width as an attachment so a message that has both does
+   not read as two different kinds of thing. */
+.link-img {
+  display: block;
+  max-width: min(26rem, 100%);
+  height: auto;
+  margin: 6px 0 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
 .hint { font-size: 0.8rem; color: var(--text-faint); }
 .hint.err { color: var(--danger); }
 .hint .mention { color: var(--agent); }
